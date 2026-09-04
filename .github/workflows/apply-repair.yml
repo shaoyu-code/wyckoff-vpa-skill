@@ -29,11 +29,24 @@ jobs:
           set -euo pipefail
           echo "21196057f079108fa83cc139bbb8955616e24a516d6590461ebfee4ef224189e  _repair_payload.part00" | sha256sum -c -
           echo "610209c20b15e0c09c694007ca92ca4931158667d73d381d50b082e992d4f4c7  _repair_payload.part01" | sha256sum -c -
-          echo "edc4ccc9f0522f52f314dc8d75175790e51966bf8122c9ea9be0d49aebb4c47c  _repair_payload.part02" | sha256sum -c -
+          echo "1b48530d0d48ab83e5b4367f295d67d5eee0003ed2c981f3b32e61ec21b284e5  _repair_payload.part02a" | sha256sum -c -
+          echo "f5f28142e2a88b5ec07871be83bc771882530395934e8cde7bcc6112921f63ff  _repair_payload.part02b" | sha256sum -c -
+          echo "6e6ca6a4040edaf3d373fa20f10a4f55def18394c947b7dcc3031f77d295b73f  _repair_payload.part02c" | sha256sum -c -
+          echo "857fb246492a8686780524d0f2b36170873f930b2fa37138e1a69882f8ccb91c  _repair_payload.part02d" | sha256sum -c -
           echo "b00593dfac296e97e52ce2030950cf1f244d182be75ef50a70debe8ab3e1c889  _repair_payload.part03" | sha256sum -c -
           echo "f6c5f9cb6e571a032f17a8118aed5cbcdd1c5d1ed24eb0cb0810654ed45b01ea  _repair_payload.part04" | sha256sum -c -
           echo "92d665aac0f991dc8bdc4cc9e1b3710524b54e4f62e924560ec5b2c2293de3f3  _repair_payload.part05" | sha256sum -c -
-          cat _repair_payload.part* > /tmp/wyckoff-vpa-repair.tar.gz.b64
+          cat \
+            _repair_payload.part00 \
+            _repair_payload.part01 \
+            _repair_payload.part02a \
+            _repair_payload.part02b \
+            _repair_payload.part02c \
+            _repair_payload.part02d \
+            _repair_payload.part03 \
+            _repair_payload.part04 \
+            _repair_payload.part05 \
+            > /tmp/wyckoff-vpa-repair.tar.gz.b64
           echo "0251bfbd63cab09de38ba2213883671733fb20ece948afdfe051df450ac7607a  /tmp/wyckoff-vpa-repair.tar.gz.b64" | sha256sum -c -
           base64 --decode /tmp/wyckoff-vpa-repair.tar.gz.b64 > /tmp/wyckoff-vpa-repair.tar.gz
           echo "7a2288aeef5c72e86d1127e240089e18c09198779f1c5c3ec6a6805b09589da9  /tmp/wyckoff-vpa-repair.tar.gz" | sha256sum -c -
