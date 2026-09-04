@@ -1,0 +1,99 @@
+{
+  "instrument": {
+    "symbol": "BTC-USD",
+    "last": 80623.390625,
+    "asof": "2026-09-04"
+  },
+  "structure": {
+    "cycle": null,
+    "phase": null,
+    "has_trading_range": false,
+    "range_high": 81392.304688,
+    "range_low": 57747.765625,
+    "events_confirmed": [],
+    "events_rejected": [],
+    "narrative": ""
+  },
+  "bias": "no_trade",
+  "confluence": {
+    "confluence_0_10": 3,
+    "parts": {
+      "trading_range": 0,
+      "event_sequence": 1,
+      "volume_confirmation": 1,
+      "higher_timeframe": 1,
+      "reward_to_risk": 0
+    },
+    "p_reach_t1_before_stop": {
+      "low": 43,
+      "high": 49,
+      "unit": "percent"
+    },
+    "tradeable": false,
+    "caveat": "Heuristic band from checklist completeness, not a historical win-rate. Recalibrate if you collect your own journal."
+  },
+  "main_plan": {
+    "name": "主方案",
+    "action": "wait",
+    "setup": null,
+    "direction": null,
+    "trigger": "写出必须出现的量价条件，未出现则不准入场",
+    "entry_zone": [
+      57747.765625,
+      80623.390625
+    ],
+    "stop": 56052.826562,
+    "t1": 81392.304688,
+    "t2": null,
+    "position_risk_pct": 0.75,
+    "rr_t1": null,
+    "p_t1_before_stop": {
+      "low": 43,
+      "high": 49,
+      "unit": "percent"
+    },
+    "hold_until": "T1 或结构破坏"
+  },
+  "alt_plan": {
+    "name": "预案 A · 反向",
+    "when": "主方案触发失败，且出现对立事件（例如 Spring 变成 SOW）",
+    "action": "stand_aside_or_reverse",
+    "trigger": null,
+    "entry_zone": null,
+    "stop": 83087.243751,
+    "t1": 57747.765625,
+    "p_t1_before_stop": {
+      "low": 31,
+      "high": 40
+    }
+  },
+  "invalidation": {
+    "name": "预案 B · 作废",
+    "hard_stop_beyond": 56052.826562,
+    "structure_break": "日线收在区间外且下一根无法收回",
+    "time_stop": "触发条件 8 根 K 线内未出现则取消本方案",
+    "do_not": [
+      "止损后立刻反手",
+      "把概率当成必然",
+      "加仓摊平"
+    ]
+  },
+  "manage": {
+    "name": "预案 C · 持仓",
+    "at_t1": "平 50%，剩余移到成本",
+    "if_effort_no_result_against": "先减仓 50%",
+    "if_news": "非农 / CPI / FOMC 当日不新开，已有仓把仓位砍到风险 0.4% 以内"
+  },
+  "risk": {
+    "max_risk_pct_equity": 0.75,
+    "max_correlated_positions": 2,
+    "skip_if": [
+      "画不出第二个人也认可的交易区间",
+      "confluence < 6",
+      "盈亏比 T1 < 1.6",
+      "更高周期明确对着干"
+    ]
+  },
+  "probability_notes": "Heuristic band from checklist completeness, not a historical win-rate. Recalibrate if you collect your own journal.",
+  "disclaimer": "研究与情景工具，不是投资建议，不保证盈利。"
+}

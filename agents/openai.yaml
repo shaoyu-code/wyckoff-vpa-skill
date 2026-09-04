@@ -1,0 +1,9 @@
+interface:
+  display_name: "Wyckoff VPA"
+  short_description: "Volume-price analysis with trade plan, risk and probability bands."
+  default_prompt: "Run the wyckoff-vpa skill on the symbol I name. Compute VPA first, then return main plan, reverse plan, invalidation, position risk and P(T1 before stop)."
+
+policy:
+  allow_implicit_invocation: true
+
+skill: ../SKILL.md

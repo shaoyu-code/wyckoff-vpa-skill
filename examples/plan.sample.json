@@ -1,0 +1,52 @@
+{
+  "bias": "short",
+  "stand_aside": false,
+  "primary": {
+    "name": "80k 上冲后的回抽做空（示例，不是当前建议）",
+    "setup_class": "ut_retest",
+    "trigger": "日线收在 80000 下，随后回抽 79200-80000 且 vol_ratio<1.2",
+    "entry_zone": [79200, 80000],
+    "stop": 81200,
+    "targets": [76000, 72000],
+    "risk_r": 1,
+    "reward_r": 2.3,
+    "size_rule": "单笔 0.75% 权益 / 止损距离",
+    "invalidation": "日线收盘站上 81200"
+  },
+  "scenarios": [
+    {
+      "id": "A",
+      "name": "主方案",
+      "when": "触发出现",
+      "action": "入场区限价空，止损 81200"
+    },
+    {
+      "id": "B",
+      "name": "失效",
+      "when": "收盘站上 81200",
+      "action": "停手，24h 不加仓；不自动反手"
+    },
+    {
+      "id": "C",
+      "name": "空仓",
+      "when": "只有盘中插针或盈亏比<1.6",
+      "action": "不交易"
+    }
+  ],
+  "risk": {
+    "per_trade_pct": 0.75,
+    "max_correlated_r": 2,
+    "no_add_hours_after_stop": 24,
+    "reduce_at_r": 2,
+    "kill_switch": ["量数据质量差", "高一级周期明显对着干"]
+  },
+  "probability": {
+    "score": 54,
+    "p_low": 0.52,
+    "p_high": 0.58,
+    "label": "标准结构",
+    "disclaimer": "结构评分换算的主观条件概率，不是回测胜率",
+    "plus": ["阻力区多次供给", "插针收回"],
+    "minus": ["回抽尚未出现", "周线未确认"]
+  }
+}

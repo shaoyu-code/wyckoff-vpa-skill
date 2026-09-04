@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store
+workspace/
+runs/
+*.csv
+!examples/*.json
+.claude/settings.local.json
