@@ -27,6 +27,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "21196057f079108fa83cc139bbb8955616e24a516d6590461ebfee4ef224189e  _repair_payload.part00" | sha256sum -c -
+          echo "610209c20b15e0c09c694007ca92ca4931158667d73d381d50b082e992d4f4c7  _repair_payload.part01" | sha256sum -c -
+          echo "edc4ccc9f0522f52f314dc8d75175790e51966bf8122c9ea9be0d49aebb4c47c  _repair_payload.part02" | sha256sum -c -
+          echo "b00593dfac296e97e52ce2030950cf1f244d182be75ef50a70debe8ab3e1c889  _repair_payload.part03" | sha256sum -c -
+          echo "f6c5f9cb6e571a032f17a8118aed5cbcdd1c5d1ed24eb0cb0810654ed45b01ea  _repair_payload.part04" | sha256sum -c -
+          echo "92d665aac0f991dc8bdc4cc9e1b3710524b54e4f62e924560ec5b2c2293de3f3  _repair_payload.part05" | sha256sum -c -
           cat _repair_payload.part* > /tmp/wyckoff-vpa-repair.tar.gz.b64
           echo "0251bfbd63cab09de38ba2213883671733fb20ece948afdfe051df450ac7607a  /tmp/wyckoff-vpa-repair.tar.gz.b64" | sha256sum -c -
           base64 --decode /tmp/wyckoff-vpa-repair.tar.gz.b64 > /tmp/wyckoff-vpa-repair.tar.gz
