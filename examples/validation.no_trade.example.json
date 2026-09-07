@@ -1,0 +1,120 @@
+{
+  "schema_version": "1.2.0",
+  "valid": true,
+  "claims_trade": false,
+  "trade_gates_pass": false,
+  "errors": [],
+  "warnings": [],
+  "hard_gates": {
+    "analysis_schema_valid": true,
+    "daily_evidence_recomputed": true,
+    "weekly_evidence_recomputed": true,
+    "daily_weekly_symbol_bound": true,
+    "weekly_fresh_and_aligned": false,
+    "analysis_lineage_bound": true,
+    "daily_data_quality_ok": true,
+    "daily_evidence_fresh": true,
+    "candidate_review_complete": true,
+    "selected_pair_latest_and_recent": false,
+    "range_bound_to_canonical_evidence": false,
+    "setup_direction_matches": false,
+    "structured_trigger_true": false,
+    "retest_structure_and_volume_valid": false,
+    "stop_buffer_0_3_to_0_6_atr": false,
+    "entry_and_targets_plausible": false,
+    "actual_rr_at_least_1_6": false,
+    "final_confluence_at_least_6": false,
+    "plans_a_b_c_complete": true,
+    "invalidation_matches_stop_and_timeframe": false,
+    "risk_contract_immutable": true,
+    "trusted_position_sizing_available": false,
+    "no_unsafe_order_language": true,
+    "standard_disclaimer_present": true
+  },
+  "evidence": {
+    "daily_run_id": "91c65f1a198c75df87e7ac9a",
+    "weekly_run_id": "5b6efd322cf3a68033fef068",
+    "daily_candidates_sha256": "c84dc76f68781d008eb12100d2787ed13cf4626c3222628d8646e9e27e36ae14",
+    "weekly_candidates_sha256": "854787bd45c4a9f03e18741c8043b31812e17ac028afae4101e2cf58007fd870",
+    "risk_config_sha256": null
+  },
+  "computed": {
+    "main": {
+      "direction": null,
+      "setup": null,
+      "weekly_direction": null,
+      "daily_freshness": {
+        "ok": true,
+        "errors": [],
+        "age_days": 0.647,
+        "maximum_age_days": 7.0
+      },
+      "rr_t1": null,
+      "stop_reference": null,
+      "stop_buffer_atr": null,
+      "final_confluence_0_10": 0,
+      "probability": {
+        "method": "heuristic_uncalibrated",
+        "event": "reach_t1_before_stop",
+        "status": "unavailable",
+        "base_low": null,
+        "base_high": null,
+        "adjustments": [],
+        "adjustment_total": 0,
+        "low": null,
+        "high": null,
+        "unit": "percent",
+        "cap": 72,
+        "historical_win_rate": false,
+        "conditional_on": [
+          "structured trigger is true on a canonical bar",
+          "the validated trading range remains intact",
+          "no newer contradictory setup supersedes the selected pair"
+        ]
+      },
+      "trigger": {
+        "confirmed": false
+      },
+      "volume_confirmation": {
+        "score": 0,
+        "supports": false
+      }
+    },
+    "alternate": {
+      "direction": null,
+      "setup": null,
+      "geometry_valid": false,
+      "rr_t1": null,
+      "canonical_opposite_pair_present": false,
+      "weekly_direction": null,
+      "parts": {
+        "trading_range": 0,
+        "event_sequence": 0,
+        "volume_confirmation": 0,
+        "higher_timeframe": 0,
+        "reward_to_risk": 0
+      },
+      "score_0_10": 0,
+      "probability": {
+        "method": "heuristic_uncalibrated",
+        "event": "reach_t1_before_stop",
+        "status": "unavailable",
+        "base_low": null,
+        "base_high": null,
+        "adjustments": [],
+        "adjustment_total": 0,
+        "low": null,
+        "high": null,
+        "unit": "percent",
+        "cap": 72,
+        "historical_win_rate": false,
+        "conditional_on": [
+          "the independently described reverse trigger occurs in the future",
+          "a canonical opposite core-and-retest sequence is confirmed before entry",
+          "the reverse plan is revalidated against then-current daily and weekly evidence"
+        ]
+      }
+    }
+  },
+  "analysis_validated_sha256": "4d1df191d252096838aedf36cb6a1dd196738342696030ab90f012d915f6ae14"
+}

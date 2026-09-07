@@ -1,38 +1,64 @@
-# 安装
+# 安装与部署
 
-仓库根目录就是 Skill。不要只拷 SKILL.md，脚本必须在相对路径 `scripts/`。
+仓库根目录就是完整 Skill。目录名必须为 `wyckoff-vpa`，不能只复制 `SKILL.md`。
+
+运行要求：Python 3.10+、可执行 `python3`、可写 `runs/`、安装 `requirements.txt`。公开行情抓取不需要 API Key。
 
 ## Claude Code / Claude Desktop
 
 ```bash
-git clone https://github.com/shaoyu-code/wyckoff-vpa-skill.git
-cp -R wyckoff-vpa-skill ~/.claude/skills/wyckoff-vpa
+git clone https://github.com/shaoyu-code/wyckoff-vpa-skill.git ~/.claude/skills/wyckoff-vpa
+python3 -m pip install -r ~/.claude/skills/wyckoff-vpa/requirements.txt
 ```
 
-或在项目里：
+项目级目录也可使用：
 
-```
-your-project/.claude/skills/wyckoff-vpa/   ← 本仓库内容
+```text
+<project>/.claude/skills/wyckoff-vpa/
 ```
 
-依赖：Python 3.10+，`pandas`、`numpy`（fetch 用标准库 urllib，不必装 yfinance）。
+## Codex / OpenAI Agent
+
+用户级：
 
 ```bash
-pip install pandas numpy
+git clone https://github.com/shaoyu-code/wyckoff-vpa-skill.git ~/.agents/skills/wyckoff-vpa
 ```
 
-## Codex / OpenAI agent
+项目级：
 
-`agents/openai.yaml` 指向本 Skill。把仓库放到 Codex skills 目录，或在项目中引用 `SKILL.md`。
+```text
+<repo>/.agents/skills/wyckoff-vpa/
+```
+
+`agents/openai.yaml` 只提供界面元数据，不替代 `SKILL.md`。
 
 ## OpenClaw
 
-把本仓库放到 OpenClaw 的 skills 目录，名称用 `wyckoff-vpa`。Agent 只要能跑 `python3 scripts/*.py` 即可。
+按部署方式放入以下任一位置，目录名保持 `wyckoff-vpa`：
 
-## 调用例子
+```text
+<workspace>/skills/wyckoff-vpa
+<workspace>/.agents/skills/wyckoff-vpa
+~/.agents/skills/wyckoff-vpa
+~/.openclaw/skills/wyckoff-vpa
+```
 
+## 离线验收
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+python3 -m compileall -q scripts
+python3 scripts/test_compute_vpa.py
+python3 scripts/test_adversarial.py
+python3 scripts/validate_examples.py
+python3 scripts/validate_skill.py
 ```
-用威科夫量价分析 BTC 日线，给开单建议、预案和概率。
-用威科夫看黄金 GC=F，如果不能开仓就给等待条件。
-分析 SPY，并对照 NDX 周线方向。
+
+## 联网验收
+
+```bash
+python3 scripts/smoke_fetch.py
 ```
+
+必须核验 BTC-USD、GC=F、SPY 的日线与周线。完整发布还需 GitHub Actions 的 Python 3.10/3.12 矩阵通过。

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/shaoyu-code/wyckoff-vpa-skill/references/risk-config.schema.json",
+  "title": "Wyckoff VPA trusted risk configuration",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "account_equity",
+    "account_currency",
+    "risk_pct_equity",
+    "fx_rate_account_to_quote",
+    "estimated_cost_per_unit",
+    "current_correlated_risk_pct_equity",
+    "current_correlated_positions",
+    "actual_tradable_symbol",
+    "override_acknowledgement"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.2.0"},
+    "account_equity": {"type": "number", "exclusiveMinimum": 0},
+    "account_currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+    "risk_pct_equity": {"type": "number", "exclusiveMinimum": 0, "maximum": 1.0},
+    "fx_rate_account_to_quote": {"type": "number", "exclusiveMinimum": 0},
+    "estimated_cost_per_unit": {"type": "number", "minimum": 0},
+    "current_correlated_risk_pct_equity": {"type": "number", "minimum": 0, "maximum": 1.5},
+    "current_correlated_positions": {"type": "integer", "minimum": 0, "maximum": 2},
+    "actual_tradable_symbol": {"type": ["string", "null"], "minLength": 1},
+    "override_acknowledgement": {
+      "type": ["string", "null"],
+      "enum": [null, "I_ACCEPT_RISK_ABOVE_0.75_PERCENT"]
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {"risk_pct_equity": {"exclusiveMinimum": 0.75}},
+        "required": ["risk_pct_equity"]
+      },
+      "then": {
+        "properties": {
+          "override_acknowledgement": {"const": "I_ACCEPT_RISK_ABOVE_0.75_PERCENT"}
+        }
+      }
+    }
+  ]
+}

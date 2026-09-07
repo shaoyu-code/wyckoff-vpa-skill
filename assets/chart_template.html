@@ -1,224 +1,55 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Wyckoff VPA</title>
-  <style>
-    :root {
-      --bg: #0b0d10;
-      --panel: #14181f;
-      --line: #2a3140;
-      --text: #e7ecf3;
-      --muted: #8b95a7;
-      --up: #3dd68c;
-      --down: #f07178;
-      --acc: rgba(61, 214, 140, 0.12);
-      --dist: rgba(240, 113, 120, 0.12);
-      --range: rgba(232, 196, 104, 0.12);
-      --gold: #e8c468;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0; background: var(--bg); color: var(--text);
-      font: 13px/1.45 "IBM Plex Sans", "Noto Sans SC", sans-serif;
-    }
-    header {
-      display: flex; justify-content: space-between; align-items: flex-end;
-      padding: 16px 20px 10px; border-bottom: 1px solid var(--line);
-    }
-    h1 { font-size: 16px; margin: 0; letter-spacing: 0.04em; }
-    .sub { color: var(--muted); font-size: 12px; }
-    .badge {
-      border: 1px solid var(--gold); color: var(--gold); padding: 2px 8px;
-      border-radius: 99px; font-size: 11px; letter-spacing: 0.08em;
-    }
-    main { display: grid; grid-template-columns: 1fr 320px; min-height: calc(100vh - 58px); }
-    canvas { width: 100%; height: 100%; display: block; }
-    #chart-wrap { position: relative; border-right: 1px solid var(--line); }
-    aside { padding: 14px 16px; overflow: auto; background: var(--panel); }
-    aside h2 { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.12em; margin: 16px 0 8px; }
-    aside h2:first-child { margin-top: 0; }
-    .quote { color: var(--gold); font-style: italic; }
-    .k { color: var(--muted); }
-    .row { display: flex; justify-content: space-between; gap: 8px; margin: 4px 0; }
-    .event { border-left: 2px solid var(--gold); padding: 6px 8px; margin: 6px 0; background: #0b0d10; }
-    .false { color: var(--down); }
-    .true { color: var(--up); }
-    .action { font-size: 22px; font-weight: 700; color: var(--gold); margin: 4px 0 10px; }
-    ul { padding-left: 16px; margin: 6px 0; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wyckoff VPA</title>
+<style>
+:root{--bg:#0b0d10;--panel:#14181f;--line:#2a3140;--text:#e7ecf3;--muted:#8b95a7;--up:#3dd68c;--down:#f07178;--gold:#e8c468}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:13px/1.45 system-ui,-apple-system,"Noto Sans SC",sans-serif}
+header{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;padding:14px 18px;border-bottom:1px solid var(--line)}
+h1{font-size:16px;margin:0}.muted{color:var(--muted)}.badge{border:1px solid var(--gold);color:var(--gold);padding:3px 9px;border-radius:99px;font-weight:700}
+main{display:grid;grid-template-columns:minmax(0,1fr) 360px;min-height:calc(100vh - 58px)}#wrap{position:relative;border-right:1px solid var(--line);min-height:640px}canvas{width:100%;height:100%;display:block}
+aside{padding:14px 16px;background:var(--panel);overflow:auto}h2{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin:16px 0 7px}.card{border:1px solid var(--line);padding:9px 10px;margin:7px 0}.row{display:flex;justify-content:space-between;gap:12px;margin:4px 0}.long{color:var(--up)}.short{color:var(--down)}.warn{color:var(--gold)}ul{margin:6px 0;padding-left:18px}
+@media(max-width:900px){main{grid-template-columns:1fr}#wrap{border-right:0;border-bottom:1px solid var(--line);min-height:520px}}
+</style>
 </head>
 <body>
-  <header>
-    <div>
-      <h1 id="title">Wyckoff VPA</h1>
-      <div class="sub" id="meta"></div>
-    </div>
-    <div class="badge" id="action-badge">WAIT</div>
-  </header>
-  <main>
-    <div id="chart-wrap"><canvas id="c"></canvas></div>
-    <aside id="side"></aside>
-  </main>
-  <script>
-    const KLINE = __KLINE_JSON__;
-    const VPA = __VPA_JSON__;
-    const ANALYSIS = __ANALYSIS_JSON__;
-    const SUMMARY = __SUMMARY_JSON__;
-
-    const title = document.getElementById("title");
-    const meta = document.getElementById("meta");
-    const badge = document.getElementById("action-badge");
-    const side = document.getElementById("side");
-    const canvas = document.getElementById("c");
-    const ctx = canvas.getContext("2d");
-
-    const sym = (ANALYSIS.symbol && ANALYSIS.symbol.code) || "—";
-    const action = (ANALYSIS.setup && ANALYSIS.setup.action) || "WAIT";
-    title.textContent = sym + " · " + ((ANALYSIS.symbol && ANALYSIS.symbol.timeframe) || "1d");
-    meta.textContent = (ANALYSIS.asof || "") + " · " + (ANALYSIS.market_cycle || "");
-    badge.textContent = action;
-
-    function esc(s) {
-      return String(s ?? "").replace(/[&<>]/g, ch => ({ "&": "&", "<": "<", ">": ">" }[ch]));
-    }
-
-    const chk = (ANALYSIS.setup && ANALYSIS.setup.checklist) || {};
-    const chkHtml = Object.entries(chk).map(([k, v]) =>
-      `<div class="row"><span class="k">${esc(k)}</span><span class="${v ? "true" : "false"}">${v ? "true" : "false"}</span></div>`
-    ).join("");
-
-    const evHtml = (ANALYSIS.events || []).slice(-6).map(e =>
-      `<div class="event"><strong>${esc(e.type)}</strong> · ${esc(e.date)}<div class="sub">${esc(e.label)}</div></div>`
-    ).join("") || "<div class='sub'>无事件（区间不够清晰就不要硬标）</div>";
-
-    side.innerHTML = `
-      <h2>Master note</h2>
-      <div class="quote">${esc(ANALYSIS.quote || "")}</div>
-      <h2>Action</h2>
-      <div class="action">${esc(action)}</div>
-      <div class="sub">${esc(ANALYSIS.setup && ANALYSIS.setup.trigger)}</div>
-      <div class="sub">无效位 ${esc(ANALYSIS.setup && ANALYSIS.setup.invalidation)}</div>
-      <h2>Checklist</h2>
-      ${chkHtml || "<div class='sub'>未写清单</div>"}
-      <h2>VPA</h2>
-      <div class="row"><span class="k">wave bias</span><span>${esc(SUMMARY.wave_bias)}</span></div>
-      <div class="row"><span class="k">last flag</span><span>${esc(SUMMARY.last_flag || "none")}</span></div>
-      <div class="row"><span class="k">rvol</span><span>${SUMMARY.rvol != null ? Number(SUMMARY.rvol).toFixed(2) : "—"}</span></div>
-      <h2>Events</h2>
-      ${evHtml}
-      <h2>Summary</h2>
-      <div>${esc(ANALYSIS.summary || "")}</div>
-    `;
-
-    const vpaByDate = {};
-    for (const r of VPA) vpaByDate[r.date] = r;
-
-    function layout() {
-      const wrap = document.getElementById("chart-wrap");
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = wrap.clientWidth * dpr;
-      canvas.height = wrap.clientHeight * dpr;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      draw(wrap.clientWidth, wrap.clientHeight);
-    }
-
-    function draw(w, h) {
-      ctx.clearRect(0, 0, w, h);
-      if (!KLINE.length) return;
-      const padL = 16, padR = 56, padT = 18, volH = Math.max(70, h * 0.18);
-      const padB = volH + 28;
-      const plotH = h - padT - padB;
-      const plotW = w - padL - padR;
-      const n = KLINE.length;
-      const highs = KLINE.map(k => k.high);
-      const lows = KLINE.map(k => k.low);
-      let ymin = Math.min(...lows), ymax = Math.max(...highs);
-      const zones = ANALYSIS.zones || [];
-      for (const z of zones) {
-        ymin = Math.min(ymin, z.bottom);
-        ymax = Math.max(ymax, z.top);
-      }
-      const yr = (ymax - ymin) || 1;
-      const vmax = Math.max(...KLINE.map(k => k.volume)) || 1;
-      const xAt = i => padL + (i + 0.5) * (plotW / n);
-      const yAt = p => padT + (1 - (p - ymin) / yr) * plotH;
-      const iAtDate = d => KLINE.findIndex(k => k.date >= d);
-
-      for (const z of zones) {
-        const i0 = Math.max(0, iAtDate(z.start));
-        const i1 = z.end ? Math.max(i0, iAtDate(z.end)) : n - 1;
-        const x0 = xAt(i0) - plotW / n / 2;
-        const x1 = xAt(i1) + plotW / n / 2;
-        ctx.fillStyle = z.type === "accumulation" ? "rgba(61,214,140,0.12)"
-          : z.type === "distribution" ? "rgba(240,113,120,0.12)"
-          : "rgba(232,196,104,0.12)";
-        ctx.fillRect(x0, yAt(z.top), x1 - x0, yAt(z.bottom) - yAt(z.top));
-        ctx.strokeStyle = "rgba(232,196,104,0.45)";
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath(); ctx.moveTo(x0, yAt(z.top)); ctx.lineTo(x1, yAt(z.top)); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(x0, yAt(z.bottom)); ctx.lineTo(x1, yAt(z.bottom)); ctx.stroke();
-        ctx.setLineDash([]);
-      }
-
-      const cw = Math.max(1, plotW / n * 0.7);
-      KLINE.forEach((k, i) => {
-        const x = xAt(i);
-        const up = k.close >= k.open;
-        ctx.strokeStyle = ctx.fillStyle = up ? "#3dd68c" : "#f07178";
-        ctx.beginPath();
-        ctx.moveTo(x, yAt(k.high));
-        ctx.lineTo(x, yAt(k.low));
-        ctx.stroke();
-        const y1 = yAt(Math.max(k.open, k.close));
-        const y2 = yAt(Math.min(k.open, k.close));
-        ctx.fillRect(x - cw / 2, y1, cw, Math.max(1, y2 - y1));
-        const volY = h - 22;
-        const vh = (k.volume / vmax) * (volH - 10);
-        ctx.globalAlpha = 0.55;
-        ctx.fillRect(x - cw / 2, volY - vh, cw, vh);
-        ctx.globalAlpha = 1;
-      });
-
-      const last = KLINE[n - 1];
-      const lastV = vpaByDate[last.date] || {};
-      if (lastV.ma50) {
-        ctx.strokeStyle = "#6ea8fe";
-        ctx.lineWidth = 1.2;
-        ctx.beginPath();
-        let started = false;
-        KLINE.forEach((k, i) => {
-          const v = vpaByDate[k.date];
-          if (!v || v.ma50 == null) return;
-          if (!started) { ctx.moveTo(xAt(i), yAt(v.ma50)); started = true; }
-          else ctx.lineTo(xAt(i), yAt(v.ma50));
-        });
-        ctx.stroke();
-        ctx.lineWidth = 1;
-      }
-
-      for (const e of (ANALYSIS.events || [])) {
-        const i = KLINE.findIndex(k => k.date === e.date);
-        if (i < 0) continue;
-        const x = xAt(i), y = yAt(e.price || KLINE[i].close);
-        ctx.fillStyle = "#e8c468";
-        ctx.beginPath(); ctx.arc(x, y, 3.5, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = "#e8c468";
-        ctx.font = "11px sans-serif";
-        ctx.fillText(e.type, x + 6, y - 6);
-      }
-
-      ctx.fillStyle = "#8b95a7";
-      ctx.font = "11px sans-serif";
-      ctx.fillText(ymax.toFixed(ymax > 1000 ? 0 : 2), w - padR + 6, padT + 10);
-      ctx.fillText(ymin.toFixed(ymin > 1000 ? 0 : 2), w - padR + 6, padT + plotH);
-      ctx.fillText(KLINE[0].date, padL, h - 6);
-      ctx.fillText(KLINE[n - 1].date, w - padR - 70, h - 6);
-    }
-
-    window.addEventListener("resize", layout);
-    layout();
-  </script>
+<header><div><h1 id="title">Wyckoff VPA</h1><div id="meta" class="muted"></div></div><div id="badge" class="badge">NO_TRADE</div></header>
+<main><div id="wrap"><canvas id="chart"></canvas></div><aside id="side"></aside></main>
+<script>
+const KLINE=__KLINE_JSON__;
+const VPA=__VPA_JSON__;
+const ANALYSIS=__ANALYSIS_JSON__;
+const VALIDATION=__VALIDATION_JSON__;
+const CANDIDATES=__CANDIDATES_JSON__;
+function esc(value){return String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch]));}
+function value(v,fallback="—"){return v===null||v===undefined||v===""?fallback:esc(v)}
+function zone(z){return Array.isArray(z)?z.map(x=>Number(x).toLocaleString()).join("–"):"—"}
+const instrument=ANALYSIS.instrument||{};const decision=ANALYSIS.decision||{};const mainPlan=ANALYSIS.main_plan||{};const altPlan=ANALYSIS.alt_plan||{};const probability=ANALYSIS.probability||{};
+document.getElementById("title").textContent=`${instrument.symbol||"—"} · ${instrument.interval||"—"}`;
+document.getElementById("meta").textContent=`${instrument.asof||""} · schema ${ANALYSIS.schema_version||"—"}`;
+document.getElementById("badge").textContent=String(decision.recommendation||"no_trade").toUpperCase();
+const gateRows=Object.entries(VALIDATION.hard_gates||{}).map(([k,v])=>`<div class="row"><span class="muted">${esc(k)}</span><strong class="${v?"long":"short"}">${v?"PASS":"BLOCK"}</strong></div>`).join("");
+const confirmed=(ANALYSIS.structure&&ANALYSIS.structure.events_confirmed)||[];
+const eventRows=confirmed.map(e=>`<div class="card"><strong>${esc(e.type)}</strong> · ${esc(e.date)}<div class="muted">${esc(e.why||"")}</div></div>`).join("")||'<div class="muted">无已确认事件</div>';
+const pText=probability.low==null?"不可用":`${probability.low}–${probability.high}%`;
+const altP=altPlan.p_t1_before_stop||{};const altPText=altP.low==null?"不可用":`${altP.low}–${altP.high}%`;
+document.getElementById("side").innerHTML=`
+<h2>结论</h2><div class="card"><div class="row"><span>建议</span><strong>${value(decision.recommendation)}</strong></div><div>${value(decision.reason)}</div></div>
+<h2>主方案</h2><div class="card"><div class="row"><span>方向 / 设置</span><span>${value(mainPlan.direction)} / ${value(mainPlan.setup)}</span></div><div class="row"><span>入场区</span><span>${zone(mainPlan.entry_zone)}</span></div><div class="row"><span>止损</span><span>${value(mainPlan.stop)}</span></div><div class="row"><span>T1 / T2</span><span>${value(mainPlan.t1)} / ${value(mainPlan.t2)}</span></div><div class="row"><span>RR(T1)</span><span>${value(mainPlan.rr_t1)}</span></div><div class="row"><span>P(T1先于止损)</span><strong>${pText}</strong></div><div class="muted">${value(mainPlan.trigger&&mainPlan.trigger.text)}</div></div>
+<h2>预案 A · 反向</h2><div class="card"><div>${value(altPlan.when)}</div><div class="row"><span>方向 / 设置</span><span>${value(altPlan.direction)} / ${value(altPlan.setup)}</span></div><div class="row"><span>入场 / 止损 / T1</span><span>${zone(altPlan.entry_zone)} / ${value(altPlan.stop)} / ${value(altPlan.t1)}</span></div><div class="row"><span>概率带</span><strong>${altPText}</strong></div></div>
+<h2>硬闸门</h2>${gateRows||'<div class="muted">尚未验证</div>'}
+<h2>已确认事件</h2>${eventRows}
+<h2>免责声明</h2><div class="muted">${value(ANALYSIS.disclaimer)}</div>`;
+const canvas=document.getElementById("chart"),ctx=canvas.getContext("2d"),vpaByDate=Object.fromEntries(VPA.map(r=>[r.date,r]));
+function draw(){const wrap=document.getElementById("wrap"),dpr=window.devicePixelRatio||1,w=wrap.clientWidth,h=wrap.clientHeight;canvas.width=w*dpr;canvas.height=h*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);if(!KLINE.length)return;const pad={l:18,r:66,t:20,b:115},pw=w-pad.l-pad.r,ph=h-pad.t-pad.b;const highs=KLINE.map(k=>Number(k.high)),lows=KLINE.map(k=>Number(k.low)),ymin=Math.min(...lows),ymax=Math.max(...highs),yr=ymax-ymin||1,n=KLINE.length,vmax=Math.max(...KLINE.map(k=>Number(k.volume)||0),1);const x=i=>pad.l+(i+.5)*pw/n,y=p=>pad.t+(1-(p-ymin)/yr)*ph;
+ctx.strokeStyle="#2a3140";ctx.fillStyle="#8b95a7";ctx.font="11px system-ui";for(let i=0;i<=4;i++){const yy=pad.t+i*ph/4;ctx.beginPath();ctx.moveTo(pad.l,yy);ctx.lineTo(pad.l+pw,yy);ctx.stroke();ctx.fillText((ymax-i*yr/4).toFixed(ymax>1000?0:2),pad.l+pw+7,yy+4)}
+const rangeHigh=ANALYSIS.structure&&ANALYSIS.structure.range_high,rangeLow=ANALYSIS.structure&&ANALYSIS.structure.range_low;if(rangeHigh!=null&&rangeLow!=null){ctx.fillStyle="rgba(232,196,104,.10)";ctx.fillRect(pad.l,y(Number(rangeHigh)),pw,y(Number(rangeLow))-y(Number(rangeHigh)));}
+const cw=Math.max(1,pw/n*.68);KLINE.forEach((k,i)=>{const up=Number(k.close)>=Number(k.open);ctx.strokeStyle=ctx.fillStyle=up?"#3dd68c":"#f07178";ctx.beginPath();ctx.moveTo(x(i),y(Number(k.high)));ctx.lineTo(x(i),y(Number(k.low)));ctx.stroke();const top=y(Math.max(Number(k.open),Number(k.close))),bottom=y(Math.min(Number(k.open),Number(k.close)));ctx.fillRect(x(i)-cw/2,top,cw,Math.max(1,bottom-top));const vh=(Number(k.volume)||0)/vmax*75;ctx.globalAlpha=.48;ctx.fillRect(x(i)-cw/2,h-pad.b+95-vh,cw,vh);ctx.globalAlpha=1;});
+function line(key,color){ctx.strokeStyle=color;ctx.lineWidth=1.2;ctx.beginPath();let started=false;KLINE.forEach((k,i)=>{const r=vpaByDate[k.date];if(!r||r[key]==null)return;started?(ctx.lineTo(x(i),y(Number(r[key])))):(ctx.moveTo(x(i),y(Number(r[key]))),started=true)});if(started)ctx.stroke();ctx.lineWidth=1;}line("sma50","#6ea8fe");line("sma200","#c792ea");
+confirmed.forEach(e=>{const i=KLINE.findIndex(k=>k.date===e.date);if(i<0)return;const price=Number(e.price||KLINE[i].close);ctx.fillStyle="#e8c468";ctx.beginPath();ctx.arc(x(i),y(price),3.5,0,Math.PI*2);ctx.fill();ctx.fillText(String(e.type),x(i)+6,y(price)-7)});ctx.fillStyle="#8b95a7";ctx.fillText(String(KLINE[0].date),pad.l,h-8);ctx.fillText(String(KLINE[n-1].date),Math.max(pad.l,w-pad.r-90),h-8)}
+window.addEventListener("resize",draw);draw();
+</script>
 </body>
 </html>

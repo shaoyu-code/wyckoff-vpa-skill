@@ -1,0 +1,150 @@
+{
+  "schema_version": "1.2.0",
+  "valid": true,
+  "claims_trade": true,
+  "trade_gates_pass": true,
+  "errors": [],
+  "warnings": [],
+  "hard_gates": {
+    "analysis_schema_valid": true,
+    "daily_evidence_recomputed": true,
+    "weekly_evidence_recomputed": true,
+    "daily_weekly_symbol_bound": true,
+    "weekly_fresh_and_aligned": true,
+    "analysis_lineage_bound": true,
+    "daily_data_quality_ok": true,
+    "daily_evidence_fresh": true,
+    "candidate_review_complete": true,
+    "selected_pair_latest_and_recent": true,
+    "range_bound_to_canonical_evidence": true,
+    "setup_direction_matches": true,
+    "structured_trigger_true": true,
+    "retest_structure_and_volume_valid": true,
+    "stop_buffer_0_3_to_0_6_atr": true,
+    "entry_and_targets_plausible": true,
+    "actual_rr_at_least_1_6": true,
+    "final_confluence_at_least_6": true,
+    "plans_a_b_c_complete": true,
+    "invalidation_matches_stop_and_timeframe": true,
+    "risk_contract_immutable": true,
+    "trusted_position_sizing_available": true,
+    "no_unsafe_order_language": true,
+    "standard_disclaimer_present": true
+  },
+  "evidence": {
+    "daily_run_id": "91c65f1a198c75df87e7ac9a",
+    "weekly_run_id": "5b6efd322cf3a68033fef068",
+    "daily_candidates_sha256": "052cbfb1a9e23e65739d41c92f460442fdf15e2b196ff57db74880f82b958e5b",
+    "weekly_candidates_sha256": "cfcd6da2657c8a8a44a589b9c0956c7fd9b064400d4439933c8af303c4b332ed",
+    "risk_config_sha256": "82d7c60ed89b854fd7cd4a7d4d2445e1d0afa4c32f70c0df6abf4b6090958fc0"
+  },
+  "computed": {
+    "main": {
+      "direction": "long",
+      "setup": "spring_retest",
+      "weekly_direction": "up",
+      "daily_freshness": {
+        "ok": true,
+        "errors": [],
+        "age_days": 0.647,
+        "maximum_age_days": 7.0
+      },
+      "rr_t1": 2.0181,
+      "stop_reference": 98.8,
+      "stop_buffer_atr": 0.4000000029734281,
+      "final_confluence_0_10": 9,
+      "probability": {
+        "method": "heuristic_uncalibrated",
+        "event": "reach_t1_before_stop",
+        "status": "validated_conditional",
+        "base_low": 61,
+        "base_high": 69,
+        "adjustments": [
+          {
+            "code": "CLEAR_VOLUME_CONTRACTION",
+            "reason": "retest relative volume is at or below 0.75",
+            "delta": 1
+          }
+        ],
+        "adjustment_total": 1,
+        "low": 62,
+        "high": 70,
+        "unit": "percent",
+        "cap": 72,
+        "historical_win_rate": false,
+        "conditional_on": [
+          "structured trigger is true on a canonical bar",
+          "the validated trading range remains intact",
+          "no newer contradictory setup supersedes the selected pair"
+        ]
+      },
+      "trigger": {
+        "mode": "retest_close_volume",
+        "bar_date": "2026-08-31",
+        "retest_id": "TEST_AFTER_SPRING:2026-08-31",
+        "canonical_close": 102.4,
+        "canonical_vol_rel": 0.5692599620493358,
+        "price_rule": {
+          "field": "close",
+          "operator": ">=",
+          "value": 101.23173519
+        },
+        "volume_rule": {
+          "field": "vol_rel",
+          "operator": "<=",
+          "value": 1.0
+        },
+        "price_true": true,
+        "volume_true": true,
+        "evidence_hash": "8a83e0689f6337a1d52b38745828ad03e157743bb5d73e17846d363d6822b43c",
+        "confirmed": true,
+        "text": "日线回测后收盘守住箱体下沿且相对量不高于 1.0，才执行主方案。"
+      },
+      "volume_confirmation": {
+        "score": 2,
+        "low_volume_retest": true,
+        "retest_volume_below_core": true,
+        "structural_hold": true,
+        "core_vol_rel": 0.81809432,
+        "retest_vol_rel": 0.56925996,
+        "supports": true
+      }
+    },
+    "alternate": {
+      "direction": "short",
+      "setup": "sow_lpsy",
+      "geometry_valid": true,
+      "rr_t1": 1.8,
+      "canonical_opposite_pair_present": false,
+      "weekly_direction": "up",
+      "parts": {
+        "trading_range": 1,
+        "event_sequence": 0,
+        "volume_confirmation": 0,
+        "higher_timeframe": 0,
+        "reward_to_risk": 1
+      },
+      "score_0_10": 2,
+      "probability": {
+        "method": "heuristic_uncalibrated",
+        "event": "reach_t1_before_stop",
+        "status": "conditional_reference_only",
+        "base_low": 40,
+        "base_high": 46,
+        "adjustments": [],
+        "adjustment_total": 0,
+        "low": 40,
+        "high": 46,
+        "unit": "percent",
+        "cap": 72,
+        "historical_win_rate": false,
+        "conditional_on": [
+          "the independently described reverse trigger occurs in the future",
+          "a canonical opposite core-and-retest sequence is confirmed before entry",
+          "the reverse plan is revalidated against then-current daily and weekly evidence"
+        ]
+      }
+    }
+  },
+  "analysis_validated_sha256": "a675e9bb9ec45790d3e6729b3abc667ed97259ce17a14a004d19553264703b63"
+}

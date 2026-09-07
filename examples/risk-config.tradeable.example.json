@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.2.0",
+  "account_equity": 100000.0,
+  "account_currency": "USD",
+  "risk_pct_equity": 0.75,
+  "fx_rate_account_to_quote": 1.0,
+  "estimated_cost_per_unit": 0.02,
+  "current_correlated_risk_pct_equity": 0.0,
+  "current_correlated_positions": 0,
+  "actual_tradable_symbol": "SPY",
+  "override_acknowledgement": null
+}

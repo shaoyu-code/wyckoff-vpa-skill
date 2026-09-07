@@ -1,0 +1,1752 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/shaoyu-code/wyckoff-vpa-skill/references/analysis.schema.json",
+  "title": "Wyckoff VPA analysis.json v1.2.0",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "lineage",
+    "instrument",
+    "data_quality",
+    "reference_levels",
+    "structure",
+    "decision",
+    "confluence",
+    "main_plan",
+    "alt_plan",
+    "invalidation",
+    "manage",
+    "risk",
+    "probability",
+    "validation_status",
+    "disclaimer"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.2.0"
+    },
+    "lineage": {
+      "type": "object",
+      "required": [
+        "daily_run_id",
+        "daily_candidates_sha256",
+        "weekly_run_id",
+        "weekly_candidates_sha256"
+      ],
+      "properties": {
+        "daily_run_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "daily_candidates_sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "weekly_run_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "weekly_candidates_sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "instrument": {
+      "type": "object",
+      "required": [
+        "symbol",
+        "requested_symbol",
+        "last",
+        "asof",
+        "interval",
+        "instrument_type",
+        "position_unit",
+        "contract_multiplier",
+        "quote_currency",
+        "sizing_requires_actual_contract",
+        "note",
+        "actual_tradable_symbol"
+      ],
+      "properties": {
+        "symbol": {
+          "type": "string",
+          "minLength": 1
+        },
+        "requested_symbol": {
+          "type": "string",
+          "minLength": 1
+        },
+        "last": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "asof": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "interval": {
+          "enum": [
+            "1h",
+            "1d",
+            "1wk"
+          ]
+        },
+        "instrument_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "position_unit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "contract_multiplier": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "quote_currency": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sizing_requires_actual_contract": {
+          "type": "boolean"
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1
+        },
+        "actual_tradable_symbol": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "data_quality": {
+      "type": "object",
+      "required": [
+        "daily",
+        "weekly"
+      ],
+      "properties": {
+        "daily": {
+          "type": "object",
+          "required": [
+            "status",
+            "trade_analysis_eligible"
+          ],
+          "properties": {
+            "status": {
+              "type": "string",
+              "minLength": 1
+            },
+            "trade_analysis_eligible": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": true
+        },
+        "weekly": {
+          "type": "object",
+          "required": [
+            "status",
+            "trade_analysis_eligible"
+          ],
+          "properties": {
+            "status": {
+              "type": "string",
+              "minLength": 1
+            },
+            "trade_analysis_eligible": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "reference_levels": {
+      "type": "object",
+      "required": [
+        "candidate_range_high",
+        "candidate_range_low",
+        "candidate_range_width_atr",
+        "candidate_range_confirmed",
+        "note"
+      ],
+      "properties": {
+        "candidate_range_high": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "candidate_range_low": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "candidate_range_width_atr": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "candidate_range_confirmed": {
+          "type": "boolean"
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "structure": {
+      "type": "object",
+      "required": [
+        "cycle",
+        "phase",
+        "has_trading_range",
+        "range_high",
+        "range_low",
+        "range_start",
+        "range_end",
+        "events_confirmed",
+        "events_rejected",
+        "setup_evidence",
+        "narrative"
+      ],
+      "properties": {
+        "cycle": {
+          "enum": [
+            "accumulation",
+            "markup",
+            "distribution",
+            "markdown",
+            "range",
+            "trend",
+            "unclear"
+          ]
+        },
+        "phase": {
+          "enum": [
+            "A",
+            "B",
+            "C",
+            "D",
+            "E",
+            null
+          ]
+        },
+        "has_trading_range": {
+          "type": "boolean"
+        },
+        "range_high": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "range_low": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "range_start": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "range_end": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "events_confirmed": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "evidence_hash",
+              "date",
+              "type",
+              "bar_index",
+              "price",
+              "extreme_price",
+              "boundary",
+              "related_event_id",
+              "why"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "evidence_hash": {
+                "type": "string",
+                "minLength": 64,
+                "maxLength": 64
+              },
+              "date": {
+                "type": "string",
+                "minLength": 10
+              },
+              "type": {
+                "enum": [
+                  "SPRING",
+                  "UT",
+                  "SOS",
+                  "SOW",
+                  "TEST_AFTER_SPRING",
+                  "TEST_AFTER_UT",
+                  "LPS",
+                  "LPSY"
+                ]
+              },
+              "bar_index": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "price": {
+                "type": "number"
+              },
+              "extreme_price": {
+                "type": "number"
+              },
+              "boundary": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "related_event_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "why": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "events_rejected": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "evidence_hash",
+              "date",
+              "type",
+              "reason"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "evidence_hash": {
+                "type": "string",
+                "minLength": 64,
+                "maxLength": 64
+              },
+              "date": {
+                "type": "string",
+                "minLength": 10
+              },
+              "type": {
+                "enum": [
+                  "SPRING",
+                  "UT",
+                  "SOS",
+                  "SOW",
+                  "TEST_AFTER_SPRING",
+                  "TEST_AFTER_UT",
+                  "LPS",
+                  "LPSY"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "setup_evidence": {
+          "type": "object",
+          "required": [
+            "core_event_id",
+            "core_event_hash",
+            "retest_id",
+            "retest_hash",
+            "reviewed_event_ids"
+          ],
+          "properties": {
+            "core_event_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "core_event_hash": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "retest_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "retest_hash": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "reviewed_event_ids": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "narrative": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "decision": {
+      "type": "object",
+      "required": [
+        "recommendation",
+        "watch_bias",
+        "ready_to_execute",
+        "reason"
+      ],
+      "properties": {
+        "recommendation": {
+          "enum": [
+            "long",
+            "short",
+            "no_trade"
+          ]
+        },
+        "watch_bias": {
+          "enum": [
+            "long",
+            "short",
+            "neutral"
+          ]
+        },
+        "ready_to_execute": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "confluence": {
+      "type": "object",
+      "required": [
+        "stage",
+        "final_score_0_10",
+        "parts"
+      ],
+      "properties": {
+        "stage": {
+          "enum": [
+            "pending_final_validation",
+            "validated",
+            "blocked"
+          ]
+        },
+        "final_score_0_10": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 10
+        },
+        "parts": {
+          "type": "object",
+          "required": [
+            "trading_range",
+            "event_sequence",
+            "volume_confirmation",
+            "higher_timeframe",
+            "reward_to_risk"
+          ],
+          "properties": {
+            "trading_range": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 2
+            },
+            "event_sequence": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 2
+            },
+            "volume_confirmation": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 2
+            },
+            "higher_timeframe": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 2
+            },
+            "reward_to_risk": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 2
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "main_plan": {
+      "type": "object",
+      "required": [
+        "name",
+        "action",
+        "direction",
+        "setup",
+        "when",
+        "setup_evidence",
+        "trigger",
+        "entry_zone",
+        "unavailable_reason",
+        "stop",
+        "t1",
+        "t2",
+        "rr_t1",
+        "position",
+        "p_t1_before_stop"
+      ],
+      "properties": {
+        "name": {
+          "const": "主方案"
+        },
+        "action": {
+          "enum": [
+            "enter_long",
+            "enter_short",
+            "wait",
+            "stand_aside"
+          ]
+        },
+        "direction": {
+          "enum": [
+            "long",
+            "short",
+            null
+          ]
+        },
+        "setup": {
+          "enum": [
+            "spring_retest",
+            "ut_retest",
+            "sos_lps",
+            "sow_lpsy",
+            null
+          ]
+        },
+        "when": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "setup_evidence": {
+          "type": "object",
+          "required": [
+            "core_event_id",
+            "core_event_hash",
+            "retest_id",
+            "retest_hash",
+            "reviewed_event_ids"
+          ],
+          "properties": {
+            "core_event_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "core_event_hash": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "retest_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "retest_hash": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "reviewed_event_ids": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "trigger": {
+          "type": "object",
+          "required": [
+            "text",
+            "mode",
+            "bar_date",
+            "price_rule",
+            "volume_rule",
+            "confirmed",
+            "evidence_hash"
+          ],
+          "properties": {
+            "text": {
+              "type": "string",
+              "minLength": 1
+            },
+            "mode": {
+              "const": "retest_close_volume"
+            },
+            "bar_date": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "price_rule": {
+              "type": "object",
+              "required": [
+                "field",
+                "operator",
+                "value"
+              ],
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "operator": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "value": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "volume_rule": {
+              "type": "object",
+              "required": [
+                "field",
+                "operator",
+                "value"
+              ],
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "operator": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "value": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "confirmed": {
+              "type": "boolean"
+            },
+            "evidence_hash": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "retest_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "canonical_close": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "canonical_vol_rel": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "price_true": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "volume_true": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "entry_zone": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            }
+          ]
+        },
+        "unavailable_reason": {
+          "type": "string"
+        },
+        "stop": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "t1": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "t2": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "rr_t1": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "position": {
+          "type": "object",
+          "required": [
+            "source",
+            "risk_pct_equity",
+            "account_equity",
+            "account_currency",
+            "fx_rate_account_to_quote",
+            "risk_amount",
+            "risk_amount_quote",
+            "estimated_cost_per_unit",
+            "actual_tradable_symbol",
+            "contract_multiplier",
+            "position_unit",
+            "formula",
+            "units"
+          ],
+          "properties": {
+            "source": {
+              "const": "validator_risk_config"
+            },
+            "risk_config_sha256": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "risk_pct_equity": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "account_equity": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "account_currency": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "fx_rate_account_to_quote": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "risk_amount": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "risk_amount_quote": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "estimated_cost_per_unit": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "actual_tradable_symbol": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "contract_multiplier": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "position_unit": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "formula": {
+              "type": "string",
+              "minLength": 1
+            },
+            "units": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "p_t1_before_stop": {
+          "type": "object",
+          "required": [
+            "method",
+            "event",
+            "status",
+            "base_low",
+            "base_high",
+            "adjustments",
+            "adjustment_total",
+            "low",
+            "high",
+            "unit",
+            "cap",
+            "historical_win_rate",
+            "conditional_on"
+          ],
+          "properties": {
+            "method": {
+              "const": "heuristic_uncalibrated"
+            },
+            "event": {
+              "const": "reach_t1_before_stop"
+            },
+            "status": {
+              "enum": [
+                "pending_final_validation",
+                "pending_independent_validation",
+                "validated_conditional",
+                "conditional_reference_only",
+                "unavailable"
+              ]
+            },
+            "base_low": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 72
+            },
+            "base_high": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 72
+            },
+            "adjustments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "reason",
+                  "delta"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "delta": {
+                    "type": "integer",
+                    "minimum": -4,
+                    "maximum": 4
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "adjustment_total": {
+              "type": "integer",
+              "minimum": -4,
+              "maximum": 4
+            },
+            "low": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 72
+            },
+            "high": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 72
+            },
+            "unit": {
+              "const": "percent"
+            },
+            "cap": {
+              "const": 72
+            },
+            "historical_win_rate": {
+              "const": false
+            },
+            "conditional_on": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "enum": [
+                  "enter_long",
+                  "enter_short"
+                ]
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "properties": {
+              "direction": {
+                "enum": [
+                  "long",
+                  "short"
+                ]
+              },
+              "setup": {
+                "enum": [
+                  "spring_retest",
+                  "ut_retest",
+                  "sos_lps",
+                  "sow_lpsy"
+                ]
+              },
+              "entry_zone": {
+                "type": "array"
+              },
+              "unavailable_reason": {
+                "const": ""
+              },
+              "stop": {
+                "type": "number"
+              },
+              "t1": {
+                "type": "number"
+              },
+              "t2": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "alt_plan": {
+      "type": "object",
+      "required": [
+        "name",
+        "action",
+        "direction",
+        "setup",
+        "when",
+        "setup_evidence",
+        "trigger",
+        "entry_zone",
+        "unavailable_reason",
+        "stop",
+        "t1",
+        "t2",
+        "rr_t1",
+        "p_t1_before_stop"
+      ],
+      "properties": {
+        "name": {
+          "const": "预案 A · 反向"
+        },
+        "action": {
+          "enum": [
+            "wait",
+            "stand_aside"
+          ]
+        },
+        "direction": {
+          "enum": [
+            "long",
+            "short",
+            null
+          ]
+        },
+        "setup": {
+          "enum": [
+            "spring_retest",
+            "ut_retest",
+            "sos_lps",
+            "sow_lpsy",
+            null
+          ]
+        },
+        "when": {
+          "type": "string"
+        },
+        "setup_evidence": {
+          "type": "object",
+          "required": [
+            "core_event_id",
+            "core_event_hash",
+            "retest_id",
+            "retest_hash",
+            "reviewed_event_ids"
+          ],
+          "properties": {
+            "core_event_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "core_event_hash": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "retest_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "retest_hash": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "reviewed_event_ids": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "trigger": {
+          "type": "object",
+          "required": [
+            "text",
+            "mode",
+            "bar_date",
+            "price_rule",
+            "volume_rule",
+            "confirmed",
+            "evidence_hash"
+          ],
+          "properties": {
+            "text": {
+              "type": "string",
+              "minLength": 1
+            },
+            "mode": {
+              "const": "retest_close_volume"
+            },
+            "bar_date": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "price_rule": {
+              "type": "object",
+              "required": [
+                "field",
+                "operator",
+                "value"
+              ],
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "operator": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "value": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "volume_rule": {
+              "type": "object",
+              "required": [
+                "field",
+                "operator",
+                "value"
+              ],
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "operator": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "value": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "confirmed": {
+              "type": "boolean"
+            },
+            "evidence_hash": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "retest_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "canonical_close": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "canonical_vol_rel": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "price_true": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "volume_true": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "entry_zone": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            }
+          ]
+        },
+        "unavailable_reason": {
+          "type": "string"
+        },
+        "stop": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "t1": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "t2": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "rr_t1": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "p_t1_before_stop": {
+          "type": "object",
+          "required": [
+            "method",
+            "event",
+            "status",
+            "base_low",
+            "base_high",
+            "adjustments",
+            "adjustment_total",
+            "low",
+            "high",
+            "unit",
+            "cap",
+            "historical_win_rate",
+            "conditional_on"
+          ],
+          "properties": {
+            "method": {
+              "const": "heuristic_uncalibrated"
+            },
+            "event": {
+              "const": "reach_t1_before_stop"
+            },
+            "status": {
+              "enum": [
+                "pending_final_validation",
+                "pending_independent_validation",
+                "validated_conditional",
+                "conditional_reference_only",
+                "unavailable"
+              ]
+            },
+            "base_low": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 72
+            },
+            "base_high": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 72
+            },
+            "adjustments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "reason",
+                  "delta"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "delta": {
+                    "type": "integer",
+                    "minimum": -4,
+                    "maximum": 4
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "adjustment_total": {
+              "type": "integer",
+              "minimum": -4,
+              "maximum": 4
+            },
+            "low": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 72
+            },
+            "high": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 72
+            },
+            "unit": {
+              "const": "percent"
+            },
+            "cap": {
+              "const": 72
+            },
+            "historical_win_rate": {
+              "const": false
+            },
+            "conditional_on": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "invalidation": {
+      "type": "object",
+      "required": [
+        "name",
+        "hard_stop_beyond",
+        "structure_break",
+        "time_stop",
+        "do_not"
+      ],
+      "properties": {
+        "name": {
+          "const": "预案 B · 作废"
+        },
+        "hard_stop_beyond": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "structure_break": {
+          "type": "string"
+        },
+        "time_stop": {
+          "type": "object",
+          "required": [
+            "bars",
+            "starts_after_trigger",
+            "rule"
+          ],
+          "properties": {
+            "bars": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "starts_after_trigger": {
+              "const": true
+            },
+            "rule": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "do_not": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "manage": {
+      "type": "object",
+      "required": [
+        "name",
+        "at_t1",
+        "if_effort_no_result_against",
+        "if_news",
+        "additional_rules"
+      ],
+      "properties": {
+        "name": {
+          "const": "预案 C · 持仓"
+        },
+        "at_t1": {
+          "type": "string",
+          "minLength": 1
+        },
+        "if_effort_no_result_against": {
+          "type": "string",
+          "minLength": 1
+        },
+        "if_news": {
+          "type": "string",
+          "minLength": 1
+        },
+        "additional_rules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "risk": {
+      "type": "object",
+      "required": [
+        "default_risk_pct_equity",
+        "allowed_without_user_override_pct",
+        "max_correlated_risk_pct_equity",
+        "max_correlated_positions",
+        "skip_if",
+        "correlation_notes",
+        "market_context_conflicts"
+      ],
+      "properties": {
+        "default_risk_pct_equity": {
+          "const": 0.75
+        },
+        "allowed_without_user_override_pct": {
+          "const": [
+            0.5,
+            0.75
+          ]
+        },
+        "max_correlated_risk_pct_equity": {
+          "const": 1.5
+        },
+        "max_correlated_positions": {
+          "const": 2
+        },
+        "skip_if": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "correlation_notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "market_context_conflicts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "probability": {
+      "type": "object",
+      "required": [
+        "method",
+        "event",
+        "status",
+        "base_low",
+        "base_high",
+        "adjustments",
+        "adjustment_total",
+        "low",
+        "high",
+        "unit",
+        "cap",
+        "historical_win_rate",
+        "conditional_on"
+      ],
+      "properties": {
+        "method": {
+          "const": "heuristic_uncalibrated"
+        },
+        "event": {
+          "const": "reach_t1_before_stop"
+        },
+        "status": {
+          "enum": [
+            "pending_final_validation",
+            "pending_independent_validation",
+            "validated_conditional",
+            "conditional_reference_only",
+            "unavailable"
+          ]
+        },
+        "base_low": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 72
+        },
+        "base_high": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 72
+        },
+        "adjustments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "code",
+              "reason",
+              "delta"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "delta": {
+                "type": "integer",
+                "minimum": -4,
+                "maximum": 4
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "adjustment_total": {
+          "type": "integer",
+          "minimum": -4,
+          "maximum": 4
+        },
+        "low": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 72
+        },
+        "high": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 72
+        },
+        "unit": {
+          "const": "percent"
+        },
+        "cap": {
+          "const": 72
+        },
+        "historical_win_rate": {
+          "const": false
+        },
+        "conditional_on": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "validation_status": {
+      "enum": [
+        "unvalidated",
+        "validated_trade",
+        "validated_no_trade",
+        "blocked"
+      ]
+    },
+    "disclaimer": {
+      "const": "研究与情景预案，不是代客下单，不保证盈利。"
+    }
+  },
+  "additionalProperties": false
+}

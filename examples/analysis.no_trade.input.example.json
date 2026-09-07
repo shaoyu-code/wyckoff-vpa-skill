@@ -1,0 +1,335 @@
+{
+  "schema_version": "1.2.0",
+  "lineage": {
+    "daily_run_id": "91c65f1a198c75df87e7ac9a",
+    "daily_candidates_sha256": "c84dc76f68781d008eb12100d2787ed13cf4626c3222628d8646e9e27e36ae14",
+    "weekly_run_id": "5b6efd322cf3a68033fef068",
+    "weekly_candidates_sha256": "854787bd45c4a9f03e18741c8043b31812e17ac028afae4101e2cf58007fd870"
+  },
+  "instrument": {
+    "symbol": "SPY",
+    "requested_symbol": "SPY",
+    "last": 105.3,
+    "asof": "2026-09-04",
+    "interval": "1d",
+    "instrument_type": "equity_or_etf",
+    "position_unit": "shares",
+    "contract_multiplier": 1.0,
+    "quote_currency": "USD",
+    "sizing_requires_actual_contract": false,
+    "note": "Assumes unlevered shares. Options and leveraged derivatives need a separate profile.",
+    "actual_tradable_symbol": null
+  },
+  "data_quality": {
+    "daily": {
+      "status": "ok",
+      "input_rows": 252,
+      "rows_after_cleaning": 252,
+      "duplicates_removed": 0,
+      "ohlc_valid": true,
+      "minimum_feature_bars": 121,
+      "volume_coverage": 1.0,
+      "missing_or_zero_volume_rows": 0,
+      "current_bar_complete": true,
+      "trade_analysis_eligible": true,
+      "reasons": [],
+      "fetch_coverage_status": "complete",
+      "continuous_contract_roll_flags": []
+    },
+    "weekly": {
+      "status": "ok",
+      "input_rows": 260,
+      "rows_after_cleaning": 260,
+      "duplicates_removed": 0,
+      "ohlc_valid": true,
+      "minimum_feature_bars": 121,
+      "volume_coverage": 1.0,
+      "missing_or_zero_volume_rows": 0,
+      "current_bar_complete": true,
+      "trade_analysis_eligible": true,
+      "reasons": [],
+      "fetch_coverage_status": "complete",
+      "continuous_contract_roll_flags": []
+    }
+  },
+  "reference_levels": {
+    "candidate_range_high": 108.44325729,
+    "candidate_range_low": 101.23173519,
+    "candidate_range_width_atr": 4.31,
+    "candidate_range_confirmed": false,
+    "note": "Reference levels are not executable until deterministic validation succeeds."
+  },
+  "structure": {
+    "cycle": "unclear",
+    "phase": null,
+    "has_trading_range": false,
+    "range_high": null,
+    "range_low": null,
+    "range_start": null,
+    "range_end": null,
+    "events_confirmed": [],
+    "events_rejected": [
+      {
+        "id": "UT:2026-07-10",
+        "evidence_hash": "fe5dd7dd66c2cab188d4524532c87aaee2a9f232ca212a05dee1c4c1b54bf841",
+        "date": "2026-07-10",
+        "type": "UT",
+        "reason": "Candidate reviewed but no executable sequence was selected."
+      },
+      {
+        "id": "TEST_AFTER_UT:2026-07-13",
+        "evidence_hash": "822a8fd99d8367ef5284ba055a3ddea4ca271d274bffd7400af2f255327d49f0",
+        "date": "2026-07-13",
+        "type": "TEST_AFTER_UT",
+        "reason": "Candidate reviewed but no executable sequence was selected."
+      },
+      {
+        "id": "SPRING:2026-07-28",
+        "evidence_hash": "71160f2d805b9272af863b0d35e79995bf5f0835eaa852f9360565fabc623832",
+        "date": "2026-07-28",
+        "type": "SPRING",
+        "reason": "Candidate reviewed but no executable sequence was selected."
+      },
+      {
+        "id": "TEST_AFTER_SPRING:2026-07-29",
+        "evidence_hash": "c7a3967c1a7f0d626a88b66ae92158fc9f75252125605c13756346eecf544961",
+        "date": "2026-07-29",
+        "type": "TEST_AFTER_SPRING",
+        "reason": "Candidate reviewed but no executable sequence was selected."
+      },
+      {
+        "id": "SPRING:2026-08-26",
+        "evidence_hash": "ca4a89390c3695e86d3906c52f15e0351524b08c2994d39264e5d37d5502305c",
+        "date": "2026-08-26",
+        "type": "SPRING",
+        "reason": "Candidate reviewed but no executable sequence was selected."
+      },
+      {
+        "id": "TEST_AFTER_SPRING:2026-08-31",
+        "evidence_hash": "624a6842a942b1a649c1287fde6662d864691e4c646c46fb09c9e20709254fd5",
+        "date": "2026-08-31",
+        "type": "TEST_AFTER_SPRING",
+        "reason": "Candidate reviewed but no executable sequence was selected."
+      }
+    ],
+    "setup_evidence": {
+      "core_event_id": null,
+      "core_event_hash": null,
+      "retest_id": null,
+      "retest_hash": null,
+      "reviewed_event_ids": []
+    },
+    "narrative": "候选事件已审查，但没有满足全部开仓闸门的方案。"
+  },
+  "decision": {
+    "recommendation": "no_trade",
+    "watch_bias": "neutral",
+    "ready_to_execute": false,
+    "reason": "No validated setup; remain flat and wait for a later retest."
+  },
+  "confluence": {
+    "stage": "pending_final_validation",
+    "final_score_0_10": null,
+    "parts": {
+      "trading_range": null,
+      "event_sequence": null,
+      "volume_confirmation": null,
+      "higher_timeframe": null,
+      "reward_to_risk": null
+    }
+  },
+  "main_plan": {
+    "name": "主方案",
+    "action": "wait",
+    "direction": null,
+    "setup": null,
+    "when": null,
+    "setup_evidence": {
+      "core_event_id": null,
+      "core_event_hash": null,
+      "retest_id": null,
+      "retest_hash": null,
+      "reviewed_event_ids": []
+    },
+    "trigger": {
+      "text": "等待事件后回测收盘与成交量条件",
+      "mode": "retest_close_volume",
+      "bar_date": null,
+      "price_rule": {
+        "field": "close",
+        "operator": null,
+        "value": null
+      },
+      "volume_rule": {
+        "field": "vol_rel",
+        "operator": "<=",
+        "value": 1.0
+      },
+      "confirmed": false,
+      "evidence_hash": null
+    },
+    "entry_zone": null,
+    "unavailable_reason": "No confirmed directional setup or validated trigger yet.",
+    "stop": null,
+    "t1": null,
+    "t2": null,
+    "rr_t1": null,
+    "position": {
+      "source": "validator_risk_config",
+      "risk_pct_equity": null,
+      "account_equity": null,
+      "account_currency": null,
+      "fx_rate_account_to_quote": null,
+      "risk_amount": null,
+      "risk_amount_quote": null,
+      "estimated_cost_per_unit": null,
+      "actual_tradable_symbol": null,
+      "contract_multiplier": null,
+      "position_unit": null,
+      "formula": "units = risk_amount_quote / (abs(entry_mid - stop) * contract_multiplier + estimated_cost_per_unit)",
+      "units": null
+    },
+    "p_t1_before_stop": {
+      "method": "heuristic_uncalibrated",
+      "event": "reach_t1_before_stop",
+      "status": "pending_final_validation",
+      "base_low": null,
+      "base_high": null,
+      "adjustments": [],
+      "adjustment_total": 0,
+      "low": null,
+      "high": null,
+      "unit": "percent",
+      "cap": 72,
+      "historical_win_rate": false,
+      "conditional_on": [
+        "structured trigger is true on a canonical bar",
+        "the validated trading range remains intact",
+        "no newer contradictory setup supersedes the selected pair"
+      ]
+    }
+  },
+  "alt_plan": {
+    "name": "预案 A · 反向",
+    "action": "wait",
+    "direction": null,
+    "setup": null,
+    "when": "未来出现相反方向的完整事件和回测后再评估。",
+    "setup_evidence": {
+      "core_event_id": null,
+      "core_event_hash": null,
+      "retest_id": null,
+      "retest_hash": null,
+      "reviewed_event_ids": []
+    },
+    "trigger": {
+      "text": "等待事件后回测收盘与成交量条件",
+      "mode": "retest_close_volume",
+      "bar_date": null,
+      "price_rule": {
+        "field": "close",
+        "operator": null,
+        "value": null
+      },
+      "volume_rule": {
+        "field": "vol_rel",
+        "operator": "<=",
+        "value": 1.0
+      },
+      "confirmed": false,
+      "evidence_hash": null
+    },
+    "entry_zone": null,
+    "unavailable_reason": "No independently validated reverse setup yet.",
+    "stop": null,
+    "t1": null,
+    "t2": null,
+    "rr_t1": null,
+    "p_t1_before_stop": {
+      "method": "heuristic_uncalibrated",
+      "event": "reach_t1_before_stop",
+      "status": "pending_independent_validation",
+      "base_low": null,
+      "base_high": null,
+      "adjustments": [],
+      "adjustment_total": 0,
+      "low": null,
+      "high": null,
+      "unit": "percent",
+      "cap": 72,
+      "historical_win_rate": false,
+      "conditional_on": [
+        "structured trigger is true on a canonical bar",
+        "the validated trading range remains intact",
+        "no newer contradictory setup supersedes the selected pair"
+      ]
+    }
+  },
+  "invalidation": {
+    "name": "预案 B · 作废",
+    "hard_stop_beyond": null,
+    "structure_break": "当前无有效交易方案；任何预填价位均作废。",
+    "time_stop": {
+      "bars": 8,
+      "starts_after_trigger": true,
+      "rule": "无触发时不启动时间止损。"
+    },
+    "do_not": [
+      "止损后立即反手",
+      "加仓摊平",
+      "把概率当成必然"
+    ]
+  },
+  "manage": {
+    "name": "预案 C · 持仓",
+    "at_t1": "到达 T1 平 50%，剩余仓位止损移到成本附近",
+    "if_effort_no_result_against": "出现反向努力无结果恶化时先减仓 50%",
+    "if_news": "重大宏观事件前不新开；已有仓按预案降风险，不临时扩大止损",
+    "additional_rules": []
+  },
+  "risk": {
+    "default_risk_pct_equity": 0.75,
+    "allowed_without_user_override_pct": [
+      0.5,
+      0.75
+    ],
+    "max_correlated_risk_pct_equity": 1.5,
+    "max_correlated_positions": 2,
+    "skip_if": [
+      "daily or weekly evidence lineage is invalid",
+      "daily or weekly data quality is not eligible",
+      "no reproducible trading range",
+      "no confirmed post-event retest",
+      "a newer contradictory sequence exists",
+      "final confluence < 6",
+      "actual RR(T1) < 1.6",
+      "higher timeframe is opposed or stale",
+      "position unit or contract multiplier is unknown"
+    ],
+    "correlation_notes": [
+      "空仓状态不新增相关风险。"
+    ],
+    "market_context_conflicts": []
+  },
+  "probability": {
+    "method": "heuristic_uncalibrated",
+    "event": "reach_t1_before_stop",
+    "status": "pending_final_validation",
+    "base_low": null,
+    "base_high": null,
+    "adjustments": [],
+    "adjustment_total": 0,
+    "low": null,
+    "high": null,
+    "unit": "percent",
+    "cap": 72,
+    "historical_win_rate": false,
+    "conditional_on": [
+      "structured trigger is true on a canonical bar",
+      "the validated trading range remains intact",
+      "no newer contradictory setup supersedes the selected pair"
+    ]
+  },
+  "validation_status": "unvalidated",
+  "disclaimer": "研究与情景预案，不是代客下单，不保证盈利。"
+}

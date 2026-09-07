@@ -1,38 +1,65 @@
-# 给 GPT Pro 的改造说明书（若要继续改）
-
-本仓库已经按这个 SPEC 落地。若要扩展，遵守下面的边界。
+# SPEC — wyckoff-vpa 1.2.0
 
 ## 产品目标
 
-用户**不自己拍板开单**。Skill 必须给出：
+Skill 在不自动下单的前提下，必须输出：
 
-1. 开单建议（做多 / 做空 / 空仓等待）
-2. 主方案（触发、入场区、止损、T1/T2、仓位）
-3. 预案 A 反向、预案 B 作废、预案 C 持仓
-4. 风险把控（单笔 %、相关仓、新闻）
-5. 概率带 P(先到 T1 再到止损)
+1. 做多、做空或空仓等待；
+2. 主方案：结构化触发、入场区、止损、T1/T2、RR、仓位；
+3. 预案 A 反向、预案 B 作废、预案 C 持仓；
+4. 单笔风险、相关风险桶、产品与事件风险；
+5. P(T1 先于止损) 的未校准整数概率带。
 
-禁止：无触发的市价指令；把规则旗标直接当 Spring；宣称回测胜率。
+## 权威顺序
 
-## 架构
+1. `SKILL.md`：Agent 业务合同；
+2. `references/analysis.schema.json`：`analysis.json` 机器合同；
+3. `references/risk-config.schema.json`：可信风险输入合同；
+4. `references/schema.md`：字段语义说明。
 
+其他文档和 examples 不得创建第二套输出结构。
+
+## 固定架构
+
+```text
+fetch daily/weekly
+→ compute immutable candidate evidence + run manifest
+→ build non-executable skeleton
+→ Agent proposes analysis
+→ validator recomputes evidence and applies trusted risk config
+→ validated output / fail-closed no-trade
 ```
-fetch_ohlcv.py   → ohlcv.csv, meta.json     数字，零 LLM
-compute_vpa.py   → vpa.csv, candidates.json 数字，零 LLM
-build_plan.py    → plan_skeleton.json       把分数填进预案骨架
-SKILL.md + LLM   → analysis.json + 中文报告 只解释数字，不编造 K 线
-```
 
-## 不要做的扩展
+`compute_vpa.py` 不确认 Phase，也不授权交易。Agent 不读取整份 CSV。`validate_analysis.py` 必须从原始行情重算候选，核对完整事件身份、日周线时效、真实触发、实际 RR、概率与仓位。
 
-- 不要接 YoungCan 的 CLI 账号体系。
-- 不要做全市场 Spring 扫描当自动交易。
-- 不要把 P 改成点估计（52.7%）。保持带。
-- 不要为了图表引入必须登录的前端。
+## 信任边界
 
-## 可以做的扩展
+可信：
 
-- 用 Polygon/Binance 替换 Yahoo（保持 CSV schema）。
-- 把用户成交日志积累成自己的校准表，替换 34+3s 映射。
-- 增加 4h BTC 周期，但日线结构仍是主图。
-- 把 `analysis.json` 画成静态 HTML（只读 runs/ 文件）。
+- `ohlcv.csv` 与 `meta.json` 的实际内容；
+- 由校验器重新计算得到的候选与特征；
+- `run_manifest.json` 的文件哈希和运行参数绑定；
+- 独立 `risk_config.json`，但仍需通过 Schema、品种画像和硬上限校验。
+
+不可信：
+
+- Agent 自填的事件日期、事件类型、量价方向、触发结果、最终分数、概率、乘数、仓位数量或 `ready_to_execute`；
+- 未通过 `validation.json` 绑定的图表或报告；
+- 仅凭包内可被一起篡改的 Manifest 所作的来源声明。
+
+## 不可修改的业务边界
+
+- 不接 YoungCan CLI、A 股漏斗、Tushare、账户系统、券商或交易所自动下单。
+- 不引入必须登录的数据源。
+- 不把候选事件当确认事件。
+- 不在 Spring/UT/SC/BC 当根入场。
+- 不强行补齐 Phase A–E。
+- 不输出点估计或声称历史胜率。
+- 不删除空仓等待分支。
+- 不对 `GC=F` 连续代码直接输出合约张数。
+- 不允许验证失败后保留做多/做空几何、仓位或概率。
+- 不允许图表、examples、部署脚本绕过最终验证器。
+
+## 发布闸门
+
+发布候选必须同时通过：Python 编译、基础回归、对抗回归、examples、Skill 合同、包解压复验。联网 Yahoo smoke 和 GitHub Actions 未通过前，只能标记为 `OFFLINE_VALIDATED / READY_FOR_DEPLOYMENT_VALIDATION`，不能标记为完整发布。
