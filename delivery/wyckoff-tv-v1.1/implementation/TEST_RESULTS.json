@@ -1,0 +1,41 @@
+{
+  "scope": "IMPACTED_NATIVE_AND_REGRESSION_SYNTHETIC_ONLY",
+  "time_utc": "2026-10-05T05:45:43.609311+00:00",
+  "python": "3.13.5",
+  "platform": "Linux",
+  "modules": [
+    "test_tv11_evidence_delivery",
+    "test_native_monitor",
+    "test_native_delivery",
+    "test_native_runtime_boundaries",
+    "test_dev6_timeframes",
+    "test_dev6_edges",
+    "test_dev4_runtime",
+    "test_dev4_tv_transactions"
+  ],
+  "tests_run": 284,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "passed": 284,
+  "elapsed_seconds": 36.13,
+  "real_tradingview_tested": false,
+  "real_market_model_tested": false,
+  "full_suite_attempt": {
+    "tests_run": 1033,
+    "passed": 1032,
+    "failures": 0,
+    "errors": 1,
+    "reason": "Optional macro dashboard test could not import streamlit; not a native TV test",
+    "not_silently_skipped": true
+  },
+  "dependency_note": "Actual pip-vendored truststore 0.10.1 used for offline full-suite imports; no fake dependency stub.",
+  "new_native_tests": 54,
+  "candidate_builder_tests": {
+    "passed": 8,
+    "failed": 0,
+    "errors": 0
+  },
+  "test_counts_overlap": true,
+  "note": "284 impacted tests are a subset of the 1033 full-suite attempt; do not add the totals."
+}

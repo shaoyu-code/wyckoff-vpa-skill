@@ -1,9 +1,7 @@
-# 本分支不可部署
+# 本分支已有代码修复候选，仍不可直接安装
 
-`work/wyckoff-tv-v1.1-baseline` 是 v1.1 规范与源码基线收集分支，不是 v1.1 安装发行版。
+`work/wyckoff-tv-v1.1-baseline` 已不只是规范：本轮新增真实GMI源码差异、三个模块、54项新增测试及候选重建工具。详见 [当前交付](delivery/wyckoff-tv-v1.1/README.md)。
 
-根目录的旧版 SKILL.md、VERSION 与脚本继承自远端 main，保持未变；不能将它们当成刚开发的 v1.1 系统复制到用户本机。
+但本轮基线是2026-09-19历史GMI dev6，不是已核对的当前Mac源码；原生视野集成、完整方法范围及本机验收尚未完成。禁止将候选包整包覆盖现有安装，禁止复制根目录旧版SKILL.md、切换稳定链接或让Codex现场补代码。
 
-当前已完成和缺少的内容见 [交付状态](delivery/wyckoff-tv-v1.1/README.md) 与 [STATUS.json](delivery/wyckoff-tv-v1.1/STATUS.json)。规范见 [SPEC.md](delivery/wyckoff-tv-v1.1/SPEC.md)。
-
-Codex 不得在本分支执行安装、重新注册 Skill、切换稳定链接或根据规范继续开发。最终安装包尚未发布。
+`implementation/build_candidate.py`只在临时目录重现源代码并生成新ZIP，不是安装器。主分支及实际生产环境保持不变。后续完整开发、集成和可安全安装的发行包仍由开发交付方完成。
