@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "spec_version": "1.1",
+  "artifact_kind": "SPEC_AND_BASELINE_EXPORT_ONLY",
+  "status": "BLOCKED_CURRENT_SOURCE_BASELINE",
+  "installable": false,
+  "deployment_ready": false,
+  "production_modified": false,
+  "legacy_remote_commit": "645a70791ae111350492b362756bbfe5f9f5ee4a",
+  "spec_git_blob": "6667281a06092e6c451e24666915981056adfba0",
+  "spec_sha256": "90c584267da2e9297d8b1de86b3b263ee547783833f3c44cb95474a38edb93bd",
+  "application_implementation": "NOT_COMPLETED",
+  "current_local_source_received": false,
+  "collector_unit_tests": {"passed": 23, "failed": 0, "scope": "ISOLATED_TEMPORARY_FIXTURES_ONLY"},
+  "native_tv_acceptance": "NOT_RUN",
+  "runtime_installation": "NOT_RUN",
+  "unattended_schedule": "NOT_ENABLED",
+  "three_book_full_method_verification": "NOT_COMPLETED",
+  "calibrated_market_probabilities": "NOT_AVAILABLE",
+  "next_required_input": "Current GMI runtime source including latest local patches, plus the actual wyckoff-vpa engine source; no credentials or live workspace.",
+  "codex_final_role": "PULL_PINNED_COMMIT_INSTALL_CONFIGURE_ACCEPTANCE_NO_DEVELOPMENT",
+  "codex_on_failure": "STOP_AND_RETURN_EVIDENCE_DO_NOT_PATCH"
+}

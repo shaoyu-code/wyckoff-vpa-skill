@@ -1,0 +1,32 @@
+{
+  "DEPLOYMENT_NOTICE.md": {
+    "bytes": 633,
+    "sha256": "00468d2676f6fadf1e0d7524400c99eb3204c99ef75543eacc5fe172f2b39d22",
+    "git_blob": "982786dc8452121620e4480d8fbb96498b141895"
+  },
+  "delivery/wyckoff-tv-v1.1/README.md": {
+    "bytes": 4370,
+    "sha256": "99a41bc5aa4e432104394ff1a3058148330a1718b44da9120a7d5c70fd0cc070",
+    "git_blob": "4d85452da53f44c38eb19eda241b6bfc02afa6d2"
+  },
+  "delivery/wyckoff-tv-v1.1/SPEC.md": {
+    "bytes": 54587,
+    "sha256": "90c584267da2e9297d8b1de86b3b263ee547783833f3c44cb95474a38edb93bd",
+    "git_blob": "6667281a06092e6c451e24666915981056adfba0"
+  },
+  "delivery/wyckoff-tv-v1.1/STATUS.json": {
+    "bytes": 1185,
+    "sha256": "6b27b9c41ae2472177ecd52eead671b8220f2fd2f4a1c37ad06fbd890e7d89cf",
+    "git_blob": "ea46196e013e5b38841042e6bcd4b7a0d3396d1c"
+  },
+  "delivery/wyckoff-tv-v1.1/tests/test_collect_runtime_baseline.py": {
+    "bytes": 7329,
+    "sha256": "fc20003b3a90e3c81336ab11927703d4eeab5b21a68403b6b4db407b1eecf5df",
+    "git_blob": "ee09c97033fdea4ac90509c3713e6d5043b16b63"
+  },
+  "delivery/wyckoff-tv-v1.1/tools/collect_runtime_baseline.py": {
+    "bytes": 8657,
+    "sha256": "8d60231592afbdbddd9d242d0fa56e67236700ccc818b25468fa85a95df37041",
+    "git_blob": "4225d86c87b66cb3446f8597b7c4c56bb4df5675"
+  }
+}
