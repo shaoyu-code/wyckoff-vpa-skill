@@ -1,0 +1,239 @@
++    if not result.resolve().is_relative_to(root.resolve()):raise NativeError('VAULT_PATH_ESCAPE')
++    return result
++
++
++def _open_note_parent(path: Path):
++    # Walk directory descriptors without following a replaced intermediate link.
++    # Paths from sync_vault use the resolved, explicitly configured Vault root.
++    path=path.absolute()
++    if '..' in path.parts:raise NativeError('VAULT_PATH_ESCAPE')
++    flags=os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW
++    fd=os.open(path.anchor,flags)
++    try:
++        for part in path.parts[1:]:
++            try:os.mkdir(part,mode=0o700,dir_fd=fd)
++            except FileExistsError:pass
++            child=os.open(part,flags,dir_fd=fd)
++            os.close(fd);fd=child
++        return fd
++    except BaseException:
++        os.close(fd);raise
++
++
++def _new_file(path: Path,data: bytes):
++    if not isinstance(data,bytes):raise TypeError('note content must be bytes')
++    parent=_open_note_parent(path.parent);temporary=None
++    def matches_existing():
++        try:fd=os.open(path.name,os.O_RDONLY|os.O_NOFOLLOW,dir_fd=parent)
++        except FileNotFoundError:return False
++        with os.fdopen(fd,'rb') as stream:
++            if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode) or stream.read(len(data)+1)!=data:
++                raise NativeError('HUMAN_NOTE_CONFLICT:'+path.name)
++        return True
++    try:
++        if matches_existing():return
++        temporary='.gmi-note-'+secrets.token_hex(12)
++        fd=os.open(temporary,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600,dir_fd=parent)
++        with os.fdopen(fd,'wb') as f:f.write(data);f.flush();os.fsync(f.fileno())
++        try:os.link(temporary,path.name,src_dir_fd=parent,dst_dir_fd=parent,follow_symlinks=False)
++        except FileExistsError:
++            if not matches_existing():raise NativeError('VAULT_NOTE_DISAPPEARED_DURING_PUBLICATION')
++        os.fsync(parent)
++        if not matches_existing():raise NativeError('VAULT_NOTE_READBACK_FAILED')
++    finally:
++        if temporary:
++            try:os.unlink(temporary,dir_fd=parent)
++            except FileNotFoundError:pass
++        os.close(parent)
++
++
++def sync_vault(store,config: dict,*,as_of: str) -> dict:
++    cfg=validate_journal_config(config)
++    if not cfg['enabled']:return {'status':'DISABLED','verified_notes':0}
++    if not cfg['vault_path'] or not cfg['timezone']:return {'status':'CONFIGURATION_PENDING','verified_notes':0}
++    vault=Path(cfg['vault_path']).expanduser().resolve(strict=True)
++    if not vault.is_dir():raise NativeError('VAULT_NOT_DIRECTORY')
++    root=_safe_path(vault,cfg['folder']);owner=_safe_path(root,'.gmi-owner.json')
++    expected=canonical({'kind':'GMI_OWNED_JOURNAL','version':1,'archive':digest(str(store.root))})
++    if root.exists() and not owner.exists() and any(root.iterdir()):raise NativeError('UNOWNED_JOURNAL_FOLDER')
++    _new_file(owner,expected)
++    events=_record_events(store,as_of);files={};latest={};errors=[]
++    for event in events:
++        key=event['snapshot_sha256'];body=store.read_snapshot(key)
++        if body.get('lineage_scope')!='MAIN_ONLY' or body.get('contains_sidecar_targets') is not False:
++            raise NativeError('VAULT_MAIN_LINEAGE_CONFLICT')
++        if event['kind']=='TV11_MAIN_RECORD':
++            date=timestamp(body['recorded_at']).astimezone(ZoneInfo(cfg['timezone'])).date().isoformat()
++            relative=f"daily/{date}/{digest(body['track_id'])[:16]}-{key[:16]}.md"
++            text=render_record(body,key);latest[body['track_id']]=(body,relative)
++        elif event['kind']=='TV11_CALENDAR_REVIEW':
++            relative=f"reviews/{body['period']['kind'].lower()}/{body['period']['id']}-{key[:16]}.md"
++            text=render_review(body,key,store)
++        else:
++            relative=f"checks/{body['day']}-{key[:16]}.md"
++            text=render_daily_check(body,key)
++        raw=text.encode('utf-8')
++        try:_new_file(_safe_path(root,relative),raw);files[relative]=hashlib.sha256(raw).hexdigest()
++        except (OSError,NativeError) as exc:errors.append(str(exc))
++    index='# 当前研究索引\n\n这里只链接当时原记录；新判断不会覆盖旧文件。\n\n'+''.join(
++        f"{b['product_id']} / {b['timeframe']} · 量价截至 {b['data_cutoff']} · [当时判断](../{path})\n\n"
++        for _,(b,path) in sorted(latest.items()))
++    # Index editions are also immutable. No mutable user note is ever overwritten.
++    index_path='indexes/current-'+hashlib.sha256(index.encode()).hexdigest()[:20]+'.md'
++    if not errors:_new_file(_safe_path(root,index_path),index.encode('utf-8'))
++    result={'status':'PARTIAL' if errors else 'SYNCED','verified_notes':len(files),'files':files,
++            'errors':errors,'index':None if errors else index_path,'root_identity':digest(str(root))}
++    key=digest(result)
++    if not any(e['kind']=='TV11_VAULT_SYNC' and e['payload']==result for e in store.events()):
++        store.append('TV11_VAULT_SYNC','tv11-vault:'+digest(str(root)),result,at=as_of,
++                     idempotency_key='tv11-vault:'+key,snapshot_sha256=store.snapshot(result))
++    return result
++
++
++def journal_checkpoint(store,config: dict,*,as_of: str,invocation: dict | None=None) -> dict:
++    cfg=validate_journal_config(config.get('journal'))
++    if not cfg['enabled']:return {'status':'DISABLED','reviews_created':0}
++    if not cfg['timezone']:return {'status':'CONFIGURATION_PENDING','reviews_created':0}
++    try:
++        if invocation is not None:record_daily_check(store,invocation,as_of=as_of,zone=cfg['timezone'])
++        created=create_calendar_reviews(store,as_of=as_of,zone=cfg['timezone'])
++        result=sync_vault(store,cfg,as_of=as_of)
++        return {**result,'reviews_created':len(created),'calendar_rule':'SUNDAY_AND_NEXT_MONTH_DAY_1',
++                'scheduler_created':False}
++    except (OSError,ValueError,NativeError) as exc:
++        return {'status':'FAILED','error':str(exc),'scheduler_created':False}
+--- a/src/global_market_intelligence/opportunities/native/layout_v11.py
++++ b/src/global_market_intelligence/opportunities/native/layout_v11.py
+@@ -10,7 +10,7 @@
+ from .tradingview import NativeError
+ from ..contracts import digest
+ 
+-VERSION = 'tv11-layout-1'
++VERSION = 'tv11-layout-2'
+ BOOL_KEYS = ('seconds', 'minutes', 'hours', 'days', 'weeks', 'months', 'ticks', 'ranges')
+ SUPPORTED = {'1M': ('months', 1), '1W': ('weeks', 1), '1D': ('days', 1),
+              '12H': ('hours', 12), '4H': ('hours', 4), '1H': ('hours', 1)}
+@@ -45,7 +45,7 @@
+ def validate_view(view: dict):
+     required = {'id','product_id','timeframe','data_cutoff','time_x','price_low','price_high',
+                 'price_y_top','price_y_bottom','work_rect','obstacles','scale','text_sizes'}
+-    if not required <= set(view) or view['scale'] not in {'linear','log'}:
++    if not required <= set(view) or view['scale'] not in {'linear','log','native_samples'}:
+         raise NativeError('ACTUAL_VIEWPORT_PROFILE_REQUIRED')
+     values = [view['price_low'],view['price_high'],view['price_y_top'],view['price_y_bottom'],
+               *view['work_rect']]
+@@ -69,7 +69,26 @@
+     for box in list(view['obstacles']) + list(view['text_sizes'].values()):
+         if any(type(x) not in (int,float) or not math.isfinite(x) for x in box):
+             raise NativeError('NONFINITE_GEOMETRY')
++    if view['scale']=='native_samples':
++        samples=view.get('price_grid',[])
++        if not isinstance(samples,list) or len(samples)<3 or any(
++            not isinstance(v,(list,tuple)) or len(v)!=2 or any(type(x) not in (int,float) or not math.isfinite(x) for x in v)
++            for v in samples):raise NativeError('NATIVE_PRICE_GRID_INVALID')
++        if any(a[0]>=b[0] or a[1]<=b[1] for a,b in zip(samples,samples[1:])):
++            raise NativeError('NATIVE_PRICE_GRID_NONMONOTONIC')
++        if samples[0][0]!=view['price_y_top'] or samples[-1][0]!=view['price_y_bottom']:
++            raise NativeError('NATIVE_PRICE_GRID_COVERAGE')
+     return grid
++
++
++def interpolate(value, pairs):
++    from bisect import bisect_left
++    xs=[p[0] for p in pairs]
++    if not xs[0]<=value<=xs[-1]:raise NativeError('PRICE_OUTSIDE_MEASURED_VIEWPORT')
++    i=bisect_left(xs,value)
++    if i<len(pairs) and xs[i]==value:return pairs[i][1]
++    a,b=pairs[i-1],pairs[i]
++    return a[1]+(value-a[0])/(b[0]-a[0])*(b[1]-a[1])
+ 
+ 
+ def project(point, view):
+@@ -77,6 +96,8 @@
+     if point['time'] not in grid:
+         raise NativeError('LABEL_TIME_OUTSIDE_MEASURED_GRID')
+     price = point['price']
++    if view['scale']=='native_samples':
++        return grid[point['time']],interpolate(price,[(p,y) for y,p in reversed(view['price_grid'])])
+     low, high = view['price_low'],view['price_high']
+     if view['scale'] == 'log':
+         if price <= 0: raise NativeError('LOG_NONPOSITIVE_LABEL')
+@@ -87,6 +108,7 @@
+ 
+ 
+ def inverse_price(y, view):
++    if view['scale']=='native_samples':return interpolate(y,view['price_grid'])
+     fraction=(view['price_y_bottom']-y)/(view['price_y_bottom']-view['price_y_top'])
+     low,high=view['price_low'],view['price_high']
+     if view['scale']=='log': return math.exp(math.log(low)+fraction*(math.log(high)-math.log(low)))
+@@ -101,6 +123,7 @@
+     for item in items:
+         if item['shape'] != 'text' or item.get('retired'): continue
+         key=item['marker']
++        if item.get('layout_scope')=='OUTSIDE_CAPTURED_VIEW_UNCHANGED':continue
+         if key not in view['text_sizes']:
+             problems.append([key,'TEXT_SIZE_NOT_MEASURED']);continue
+         width,height=view['text_sizes'][key]
+@@ -133,9 +156,12 @@
+     grid=validate_view(view)
+     if any(manifest.get(k)!=view.get(k) for k in ('product_id','timeframe','data_cutoff')):
+         raise NativeError('VIEWPORT_IDENTITY_MISMATCH')
+-    if view.get('bbox_basis') != 'TOP_LEFT_NATIVE_MEASURED':
++    if view.get('bbox_basis') not in {'TOP_LEFT_NATIVE_MEASURED','CANVAS_CONSERVATIVE_ESTIMATE'}:
+         raise NativeError('NATIVE_TEXT_METRICS_REQUIRED')
++    if view.get('manual_bounds_unresolved'):raise NativeError('MANUAL_BOUNDS_UNRESOLVED_KEEP_HUMAN_DRAWINGS')
+     result=deepcopy(manifest);placed=[];links=[];mapping={}
++    if view.get('bbox_basis')=='CANVAS_CONSERVATIVE_ESTIMATE':
++        result['layout_metric_quality']='ESTIMATED_TEXT_ANCHOR_NOT_NATIVE_VISUAL_CERTIFIED'
+     wx,wy,ww,wh=view['work_rect']
+     # Mandatory information has deterministic precedence, not the newest timestamp alone.
+     labels=[x for x in result['items'] if x['shape']=='text' and not x.get('retired')]
+@@ -145,7 +171,13 @@
+         if key not in view['text_sizes']:raise NativeError('NATIVE_TEXT_METRICS_REQUIRED')
+         width,height=view['text_sizes'][key]
+         if width<=0 or height<=0:raise NativeError('TEXT_SIZE_INVALID')
+-        anchor=deepcopy(item['points'][0]);ax,ay=project(anchor,view)
++        anchor=deepcopy(item.get('semantic_anchor') or item['points'][0])
++        if anchor['time'] not in dict(grid):
++            if item.get('display_priority',1)==0:raise NativeError('CURRENT_CONDITION_OUTSIDE_CAPTURED_VIEW')
++            item['layout_scope']='OUTSIDE_CAPTURED_VIEW_UNCHANGED'
++            mapping[key]={'anchor':anchor,'display':item['points'][0],'scope':item['layout_scope']}
++            continue
++        ax,ay=project(anchor,view)
+         # A drawing's semantic point is stored separately before the text is moved.
+         choices=sorted(grid,key=lambda tx:(abs(tx[1]-ax),tx[0]))[:30]
+         found=None
+--- a/src/global_market_intelligence/opportunities/native/observations.py
++++ b/src/global_market_intelligence/opportunities/native/observations.py
+@@ -3,7 +3,7 @@
+ from datetime import timedelta
+ from ..contracts import Instrument, Bar, digest, TERMINAL
+ from ..plans import leaves
+-from ..timeframes import research_frame
++from ..timeframes import research_frame, ADVISORY_FRAMES, FRESHNESS_HOURS
+ from ..sessions import interval_status, stale_after_session
+ from ...market_integrity import timestamp
+ from .pipeline_support import record
+@@ -39,14 +39,14 @@
+         return []
+     tf = dataset['timeframe']
+     primary_tf=research_frame(request['spec'])
+-    if tf not in ({'4H','1H'} if primary_tf=='1D' else {'1H'}):
++    if tf not in ADVISORY_FRAMES[primary_tf]:
+         return []
+     inst = Instrument(**request['instrument']); now = timestamp(at)
+     bars = [Bar(**b) for b in dataset['bars']]
+     if any(not b.usable(inst, now) or interval_status(b, inst) != 'OK' for b in bars):
+         return []
+     bars.sort(key=lambda b: timestamp(b.closed_at))
+-    if not bars or stale_after_session(timestamp(bars[-1].closed_at), tf, now, 8 if tf == '4H' else 2, inst):
++    if not bars or stale_after_session(timestamp(bars[-1].closed_at), tf, now, FRESHNESS_HOURS[tf], inst):
+         return []
+     plan = row.get('monitoring_plan')
+     version = plan['version_id'] if plan else row['spec_sha256']
+@@ -91,7 +91,7 @@
+                         'daily_confirmation':False,'structure_confirmation':False,'analysis_timeframe':primary_tf,'events':entered,'timeframe':tf,
+                         'bar_closed_at':last.closed_at,'detected_at':at,'plan_version':version,
+                         'evidence_refs':[last.evidence_id],
+-                        'expires_at':(timestamp(last.closed_at)+timedelta(hours=8 if tf=='4H' else 2)).isoformat()}
++                        'expires_at':(timestamp(last.closed_at)+timedelta(hours=FRESHNESS_HOURS[tf])).isoformat()}

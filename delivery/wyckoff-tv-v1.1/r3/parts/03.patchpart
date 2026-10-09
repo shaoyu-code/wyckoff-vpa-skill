@@ -1,0 +1,197 @@
+     return {'schema_version':'gmi-native-monitor-v1','enabled':False,'write_tv':False,'notify_desktop':False,'cdp_endpoint':'http://127.0.0.1:9222',
+             'engine_path':None,'engine_python':None,'codex_executable':'codex','review_model':None,
+-            'review_timeout_seconds':240,'tv_timeout_seconds':25,'min_daily_bars':200,'min_weekly_bars':100,'min_4h_bars':200,
++            'review_timeout_seconds':240,'tv_timeout_seconds':25,'min_daily_bars':200,'min_weekly_bars':100,'min_4h_bars':200,'min_monthly_bars':24,'min_12h_bars':200,
+             'poll_seconds':60,'review_period_days':14,'scan_layout':None,
+-            'revision_check_seconds':{'1D':86400,'1W':86400,'4H':14400,'1H':3600},
++            'journal':{'enabled':False,'timezone':None,'vault_path':None,'folder':'Wyckoff'},
++            'revision_check_seconds':{'1M':86400,'1W':86400,'1D':86400,'12H':43200,'4H':14400,'1H':3600},
+             'observation_policy':{'schema_version':'gmi-intraday-observation-v1','enabled':True,'near_bps':50,
+                 'events':['NEAR','TOUCH','CROSS'],'meaning':'ADVISORY_ONLY_NOT_DAILY_CONFIRMATION'},'products':[]}
+ 
+@@ -72,8 +73,11 @@
+ 
+ 
+ def add_current(config: dict, *, layout_id: str, instrument_type: str, calendar: str, volume_basis: str,
+-                underlying: str, contract_month: str | None, price_basis: str, intraday_alignment: str, analysis_timeframes: list[str] | None=None):
++                underlying: str, contract_month: str | None, price_basis: str, intraday_alignment: str, analysis_timeframes: list[str] | None=None,
++                monthly_timestamp_mode: str | None=None, asset_key: str | None=None):
+     """Setup only: read existing chart metadata, never infer exact product type."""
++    from copy import deepcopy
++    config=deepcopy(config)
+     tv=TradingView(config['cdp_endpoint'],layout_id)
+     try:tv.connect();s=tv.capabilities()['state']
+     finally:tv.close()
+@@ -96,12 +100,16 @@
+     inst=Instrument(symbol,underlying,symbol,venue,'TRADINGVIEW_NATIVE_CDP',instrument_type,currency,
+         str(info.get('unit_id') or currency+'_PER_UNIT'),tz,price_basis,session,calendar,calversion,contract_month,
+         allows_negative_price=instrument_type in {'FUTURES','CONTINUOUS_REFERENCE'})
+-    frames=analysis_timeframes or ['1D','4H']
+-    primary='1D' if '1D' in frames else '4H'
++    frames=analysis_timeframes or ['1M','1W','1D','4H']
++    selected_frames({'analysis_timeframes':frames})
++    primary='1D' if '1D' in frames else selected_frames({'analysis_timeframes':frames})[0]
+     product={'instrument':asdict(inst),'symbol':symbol,'layout_id':layout_id,'price_tolerance':minmov/scale/10,
+-        'analysis_timeframe':primary,'analysis_timeframes':frames,'delivery_layouts':{primary:layout_id},'capture_bars':{'1D':750,'1W':260,'4H':750,'1H':300},
++        'analysis_timeframe':primary,'analysis_timeframes':frames,'delivery_layouts':{tf:layout_id for tf in frames},'layout_mode':'SEQUENTIAL_SAME_PRODUCT','capture_bars':dict(CAPTURE_DEPTHS),
+         'profile':{'volume_basis':volume_basis,'metadata_witness':witness,'daily_timestamp_mode':'UTC_DATE',
+                    'intraday_alignment':intraday_alignment,'publication_delay_seconds':60},'supply_evidence_files':[]}
++    if monthly_timestamp_mode is not None:
++        product['profile']['period_timestamp_modes']={'1M':monthly_timestamp_mode}
++    if asset_key is not None:product['asset_key']=asset_key
+     if any(p['instrument']['product_id']==symbol for p in config['products']):raise NativeError('PRODUCT_ALREADY_SELECTED')
+     config['products'].append(product);validate_config(config);return config
+ 
+@@ -158,18 +166,20 @@
+ 
+ def main(argv=None):
+     parser=argparse.ArgumentParser(description='GMI native runtime. No broker/order access. Deployment selects products and enables writes.')
+-    parser.add_argument('action',choices=['init','add-current','configure-timeframes','bind-layout','doctor','once','watch'])
++    parser.add_argument('action',choices=['init','add-current','configure-timeframes','bind-layout','doctor','once','watch','journal','scope'])
+     parser.add_argument('--workspace',type=Path)
+     parser.add_argument('--config',type=Path)
+     parser.add_argument('--layout-id')
+     parser.add_argument('--symbol')
+-    parser.add_argument('--timeframe',choices=['1D','4H'])
+-    parser.add_argument('--research-timeframes',nargs='+',choices=['1D','4H'],default=['1D','4H'])
++    parser.add_argument('--timeframe',choices=list(RESEARCH_FRAMES))
++    parser.add_argument('--research-timeframes',nargs='+',choices=list(RESEARCH_FRAMES),default=['1M','1W','1D','4H'])
+     parser.add_argument('--instrument-type',choices=['SPOT','EQUITY','ETF','FUTURES','PERPETUAL','CONTINUOUS_REFERENCE'])
+     parser.add_argument('--calendar')
+     parser.add_argument('--volume-basis',choices=['BASE_UNITS','QUOTE_UNITS','CONTRACTS','SHARES'])
+     parser.add_argument('--underlying')
+     parser.add_argument('--contract-month')
++    parser.add_argument('--asset-key')
++    parser.add_argument('--monthly-timestamp-mode',choices=['UTC_PERIOD_START','FIRST_SESSION_DATE','SESSION_OPEN'])
+     parser.add_argument('--price-basis')
+     parser.add_argument('--intraday-alignment',default='',choices=['','SESSION_OPEN'])
+     args=parser.parse_args(argv)
+@@ -186,7 +196,8 @@
+                 parser.error('add-current needs --layout-id --instrument-type --calendar --volume-basis --underlying --price-basis')
+             cfg=add_current(config,layout_id=args.layout_id,instrument_type=args.instrument_type,calendar=args.calendar,
+                 volume_basis=args.volume_basis,underlying=args.underlying,contract_month=args.contract_month,
+-                price_basis=args.price_basis,intraday_alignment=args.intraday_alignment,analysis_timeframes=args.research_timeframes)
++                price_basis=args.price_basis,intraday_alignment=args.intraday_alignment,analysis_timeframes=args.research_timeframes,
++                monthly_timestamp_mode=args.monthly_timestamp_mode,asset_key=args.asset_key)
+             write_json(path,cfg);print(json.dumps({'state':'PRODUCT_SELECTED','symbol':cfg['products'][-1]['symbol']},ensure_ascii=False));return 0
+         if args.action=='configure-timeframes':
+             if not args.symbol:parser.error('--symbol is required')
+@@ -196,9 +207,20 @@
+             if not all((args.symbol,args.timeframe,args.layout_id)):parser.error('--symbol --timeframe --layout-id required')
+             cfg=bind_layout(config,symbol=args.symbol,timeframe=args.timeframe,layout_id=args.layout_id)
+             write_json(path,cfg);print(json.dumps({'state':'LAYOUT_BOUND_NOT_DELIVERY_VALIDATED','symbol':args.symbol,'timeframe':args.timeframe,'layout_id':args.layout_id}));return 0
++        if args.action=='scope':
++            from .scope_v11 import scope_report
++            print(json.dumps(scope_report(config),ensure_ascii=False,indent=2));return 0
+         if args.action=='doctor':
+             result=doctor(config);write_json(workspace/'native_doctor.json',result)
+             print(json.dumps(result,ensure_ascii=False,indent=2));return 0 if result['ready_for_runtime'] else 2
++        if args.action=='journal':
++            from .journal_v11 import journal_checkpoint
++            from ..store import EventStore
++            from .tradingview import desktop_lock
++            with desktop_lock(workspace/'.native-run.lock'):
++                result=journal_checkpoint(EventStore(workspace/'archive'),config,as_of=utcnow())
++            print(json.dumps(result,ensure_ascii=False,indent=2))
++            return 0 if result['status']=='SYNCED' else 2
+         if args.action=='once':
+             result=run_once(workspace,config);print(json.dumps(result,ensure_ascii=False,indent=2));return 0 if result['state'] in {'COMPLETED','IDLE'} else 2
+         if not config['enabled']:raise NativeError('MONITORING_DISABLED_IN_CONFIG')
+--- a/src/global_market_intelligence/opportunities/native/compute_bridge.py
++++ b/src/global_market_intelligence/opportunities/native/compute_bridge.py
+@@ -45,7 +45,7 @@
+     qualified=qualify_capture(source['capture'],inst,source['profile'],as_of=source['as_of'])
+     if qualified['capture_sha256']!=meta.get('gmi_native_capture_sha256') or qualified['instrument']!=meta.get('gmi_instrument'):
+         raise ValueError('TV_CAPTURE_META_MISMATCH')
+-    interval={'1D':'1d','1W':'1wk','4H':'4h','1H':'1h'}[qualified['timeframe']]
++    interval={'1M':'1mo','1W':'1wk','1D':'1d','12H':'12h','4H':'4h','1H':'1h'}[qualified['timeframe']]
+     if meta['interval']!=interval or meta.get('rows')!=len(qualified['bars']):
+         raise ValueError('TV_SOURCE_INTERVAL_OR_COUNT_MISMATCH')
+     with (run/'ohlcv.csv').open(newline='') as stream:
+--- a/src/global_market_intelligence/opportunities/native/data.py
++++ b/src/global_market_intelligence/opportunities/native/data.py
+@@ -13,11 +13,10 @@
+ 
+ def bar_interval(tv_time: int, timeframe: str, inst: Instrument, profile: dict):
+     at=datetime.fromtimestamp(tv_time,timezone.utc)
++    from ..periods_v11 import utc_interval, native_period_interval
+     if inst.calendar_id=='24/7_UTC':
+-        width={'1D':86400,'1W':604800,'4H':14400,'1H':3600}[timeframe]
+-        if at.second or at.minute or (timeframe in {'1D','1W'} and at.hour) or (timeframe=='4H' and at.hour%4) or (timeframe=='1W' and at.weekday()!=0):
+-            raise NativeError('NATIVE_BAR_ALIGNMENT_MISMATCH')
+-        return at,at+timedelta(seconds=width),at.date().isoformat()
++        try:return utc_interval(at,timeframe)
++        except ValueError as exc:raise NativeError(str(exc)) from exc
+     import exchange_calendars
+     if inst.calendar_version!='exchange_calendars:'+exchange_calendars.__version__:raise NativeError('CALENDAR_VERSION_MISMATCH')
+     c=exchange_calendar(inst.calendar_id,at.year)
+@@ -33,14 +32,12 @@
+             day=found[0].date().isoformat()
+         else:raise NativeError('DAILY_TIMESTAMP_MODE_REQUIRED')
+         return c.session_open(day).to_pydatetime(),c.session_close(day).to_pydatetime(),day
+-    if timeframe=='1W':
+-        monday=at.date()-timedelta(days=at.weekday())
+-        days=c.sessions_in_range(monday.isoformat(),(monday+timedelta(days=6)).isoformat())
+-        if not len(days):raise NativeError('EMPTY_WEEK_SESSION')
+-        return c.session_open(days[0]).to_pydatetime(),c.session_close(days[-1]).to_pydatetime(),monday.isoformat()
++    if timeframe in {'1W','1M'}:
++        try:return native_period_interval(at,timeframe,inst,profile)
++        except ValueError as exc:raise NativeError(str(exc)) from exc
+     if profile.get('intraday_alignment')!='SESSION_OPEN':raise NativeError('EXPLICIT_INTRADAY_ALIGNMENT_REQUIRED')
+     sessions=c.sessions_in_range((at-timedelta(days=2)).date().isoformat(),(at+timedelta(days=2)).date().isoformat())
+-    width=timedelta(hours={'4H':4,'1H':1}[timeframe])
++    width=timedelta(hours={'12H':12,'4H':4,'1H':1}[timeframe])
+     for s in sessions:
+         opened=c.session_open(s).to_pydatetime();closed=c.session_close(s).to_pydatetime()
+         if opened<=at<closed:
+@@ -59,7 +56,8 @@
+     if tf not in RESOLUTIONS or ALIASES.get(str(state.get('resolution')))!=RESOLUTIONS[tf]:raise NativeError('CAPTURE_RESOLUTION_MISMATCH')
+     if captured>cutoff:raise NativeError('CAPTURE_AFTER_ANALYSIS_CUTOFF')
+     if capture.get('origin')!='TV_NATIVE_CDP':raise NativeError('NATIVE_ORIGIN_REQUIRED')
+-    if state['symbol']!=profile['symbol']:raise NativeError('WRONG_CHART_SYMBOL')
++    if state['symbol']!=profile['symbol'] or profile['symbol']!=inst.provider_symbol:
++        raise NativeError('WRONG_CHART_SYMBOL')
+     if state['chart_type'] not in {0,1,9}:raise NativeError('NONSTANDARD_PRICE_CHART')
+     if not capture['bars']:raise NativeError('EMPTY_NATIVE_CAPTURE')
+     # Metadata witness is supplied at setup from the actual chart, then checked
+--- a/src/global_market_intelligence/opportunities/native/drawing.py
++++ b/src/global_market_intelligence/opportunities/native/drawing.py
+@@ -1,6 +1,7 @@
+ """Evidence-indexed native objects. No complete A-E chain is fabricated."""
+ from __future__ import annotations
+ import math
++import re
+ from ..contracts import digest
+ from .tradingview import NativeError
+ 
+@@ -8,12 +9,27 @@
+ from .layout_v11 import visibility, validate_visibility, arrange_labels
+ 
+ def interval_visibility(tf: str):
+-    if tf not in {'1D','4H'}:
++    from ..timeframes import RESEARCH_FRAMES
++    if tf not in RESEARCH_FRAMES:
+         raise NativeError('UNSUPPORTED_STRUCTURE_DRAWING_TIMEFRAME')
+     return visibility(tf)
+ 
+ 
+ def marker(product_id: str,key: str):return '[GMI:'+digest([product_id,key])[:24]+']'
++
++
++def readable_lines(text: str, width: int=32) -> str:
++    """Add whitespace only; do not truncate the reason or split numeric tokens."""
++    output=[]
++    for line in str(text).split('\n'):
++        if line.startswith('[GMI:'):output.append(line);continue
++        current=''
++        for token in re.findall(r'[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?|[A-Za-z_][A-Za-z0-9_:./-]*|.',line):
++            if current and len(current)+len(token)>width:
++                output.append(current);current=''
++            current+=token
++        output.append(current)
++    return '\n'.join(output)
+ 
+ 
+ def make_manifest(dataset: dict,review: dict, *, symbol: str,layout_id: str,episode_id: str,
+@@ -24,8 +40,8 @@
+     def point(i,price):return {'time':int(native[bars[i]['opened_at']]['time']),'price':float(price)}

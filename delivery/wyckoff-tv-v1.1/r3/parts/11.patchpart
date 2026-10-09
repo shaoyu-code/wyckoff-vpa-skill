@@ -1,0 +1,210 @@
+                      'native_entities':{item['marker']:next(s['id'] for s in actual['shapes'] if item['marker'] in shape_text(s)) for item in items},
+                      'verified_at':completed,'evidence_dir':str(evidence_dir),
+                      'native_readback_complete':True,
++                     'target_guard_scope':manifest.get('target_guard_scope','LEGACY_NO_V11_TARGET_WITNESS'),
++                     'layout_metric_quality':manifest.get('layout_metric_quality','NOT_MEASURED'),
+                      'visual_acceptance':'NOT_RUN_REQUIRES_REAL_SCREENSHOT_REVIEW',
+                      'v11_complete':False,
+                      'frozen_research_sha256':manifest.get('frozen_research_sha256'),
+--- a/src/global_market_intelligence/opportunities/native/tv_native.js
++++ b/src/global_market_intelligence/opportunities/native/tv_native.js
+@@ -5,6 +5,20 @@
+   const chart = root?._activeChartWidgetWV?.value?.();
+   if (!chart) throw new Error('TV_CHART_API_UNAVAILABLE');
+   const ms = chart._chartWidget?.model?.()?.mainSeries?.();
++  // Per-document object identity and user-interaction generation. A switch away
++  // and back must not silently reinstate a write plan made before user input.
++  const slot = '__gmiNativeTargetGuardV11';
++  if (!window[slot]) {
++    const registry = {ids:new WeakMap(), next:0, interactions:0};
++    for (const event of ['pointerdown','keydown','wheel','touchstart'])
++      document.addEventListener(event,e=>{if(e.isTrusted)registry.interactions++;}, {capture:true,passive:true});
++    Object.defineProperty(window,slot,{value:registry,configurable:false});
++  }
++  const registry=window[slot];
++  const ident=o=>{if(!o || (typeof o!=='object'&&typeof o!=='function'))return null;
++    if(!registry.ids.has(o))registry.ids.set(o,String(++registry.next));return registry.ids.get(o);};
++  const stable=x=>Array.isArray(x)?x.map(stable):(x&&typeof x==='object'?Object.fromEntries(Object.keys(x).sort().map(k=>[k,stable(x[k])])):x);
++  const eq=(a,b)=>JSON.stringify(stable(a))===JSON.stringify(stable(b));
+   const safe = x => { try { return JSON.parse(JSON.stringify(x)); } catch (_) { return null; } };
+   const fn = name => { if (typeof chart[name] !== 'function') throw new Error('TV_METHOD_MISSING:' + name); };
+   const state = () => {
+@@ -13,10 +27,22 @@
+     return {symbol: chart.symbol(), resolution: String(chart.resolution()), chart_type: chart.chartType(),
+       layout_id: location.pathname.match(/\/chart\/([^/]+)/)?.[1] || null,
+       url: location.origin + location.pathname, ext, info,
+-      document_epoch: performance.timeOrigin, ready: document.readyState};
++      document_epoch: performance.timeOrigin, ready: document.readyState,
++      chart_instance:ident(chart), series_instance:ident(ms), interaction_epoch:registry.interactions,
++      guard_version:'tv11-context-2'};
+   };
+   const guard = () => {
+     const s = state();
++    if (root?._activeChartWidgetWV?.value?.() !== chart) throw new Error('TV_ACTIVE_PANE_CHANGED');
++    if (chart._chartWidget?.model?.()?.mainSeries?.() !== ms) throw new Error('TV_MAIN_SERIES_CHANGED');
++    if (req.expected_target) {
++      const expected=req.expected_target;
++      for(const k of ['layout_id','symbol','resolution','chart_type','document_epoch','chart_instance','series_instance','interaction_epoch'])
++        if(expected[k]===undefined || !eq(expected[k],s[k]))throw new Error('TV_TARGET_CHANGED:'+k);
++      for(const section of ['ext','info'])
++        for(const [k,v] of Object.entries(expected[section]||{}))
++          if(!eq(v,s[section]?.[k]))throw new Error('TV_TARGET_MODIFIER_CHANGED:'+section+'.'+k);
++    }
+     if (req.symbol && s.symbol !== req.symbol) throw new Error('TV_PRODUCT_CHANGED');
+     if (req.resolution && s.resolution !== req.resolution) throw new Error('TV_TIMEFRAME_CHANGED');
+     if (req.layout_id && s.layout_id !== req.layout_id) throw new Error('TV_LAYOUT_CHANGED');
+@@ -34,18 +60,26 @@
+     });
+   };
+   if (req.action === 'state') return state();
++  if (req.action === 'viewport') {guard();return await gmiViewportV11(req,chart,ms,guard,state,inventory);}
+   if (req.action === 'capabilities') return {state:state(),
+     methods:Object.fromEntries(['setSymbol','setResolution','getAllShapes','getShapeById','createShape','createMultipointShape','removeEntity'].map(n=>[n,typeof chart[n]==='function'])),
+     raw_bars:!!ms?.bars?.(), save_api:typeof root.saveChartToServer==='function',
+     save_button:!!document.querySelector('[data-name="save-chart-to-server"], [data-name="header-toolbar-save-load"]')};
+   if (req.action === 'select') {
+     if (req.layout_id && state().layout_id !== req.layout_id) throw new Error('WRONG_TARGET_LAYOUT');
++    if(req.expected_target)guard();
+     fn('setSymbol');fn('setResolution');
+     // Completion is checked by Python using actual symbolInfo and stable bars,
+     // not by a timer or by the absence of a thrown exception.
+-    if (chart.symbol() !== req.target_symbol) await chart.setSymbol(req.target_symbol, {});
+-    if (String(chart.resolution()) !== req.target_resolution) await chart.setResolution(req.target_resolution, {});
+-    return state();
++    const selectionStart=state();
++    const stillSelected=()=>{
++      if(root?._activeChartWidgetWV?.value?.()!==chart)throw new Error('USER_CHANGED_PANE_DURING_SELECT');
++      if(registry.interactions!==selectionStart.interaction_epoch)throw new Error('USER_INTERVENED_DURING_SELECT');
++      if(state().layout_id!==selectionStart.layout_id)throw new Error('USER_CHANGED_LAYOUT_DURING_SELECT');
++    };
++    if (chart.symbol() !== req.target_symbol) {await chart.setSymbol(req.target_symbol, {});stillSelected();}
++    if (String(chart.resolution()) !== req.target_resolution) {stillSelected();await chart.setResolution(req.target_resolution, {});}
++    stillSelected();return state();
+   }
+   guard();
+   if (req.action === 'bars') {
+@@ -71,22 +105,31 @@
+     if (!item.text.includes('[GMI:')) throw new Error('OWNER_MARKER_REQUIRED');
+     const options={shape:item.shape,text:item.text,disableSave:false,disableSelection:false,lock:true,
+       overrides:{...item.overrides,text:item.text}};
++    guard();
+     const id=p.length===1 ? await chart.createShape(p[0],options) : await chart.createMultipointShape(p,options);
++    guard();
+     return {entity_id:id===undefined?null:String(id),state:state()};
+   }
+   if (req.action === 'modify' || req.action === 'remove') {
+     // Compare-and-set prevents a human edit between Python read and mutation.
+-    const stable=x=>Array.isArray(x)?x.map(stable):(x&&typeof x==='object'?Object.fromEntries(Object.keys(x).sort().map(k=>[k,stable(x[k])])):x);
+     const actual=inventory().find(x=>x.id===String(req.entity_id));
+     if (!req.expected || JSON.stringify(stable(actual))!==JSON.stringify(stable(req.expected))) throw new Error('MANUAL_EDIT_AFTER_READBACK');
+     fn('getShapeById');
+     const s=chart.getShapeById(req.entity_id); if(!s) throw new Error('DRAWING_DISAPPEARED');
+     const old=safe(s.getProperties());
+     if (!JSON.stringify(old).includes(req.marker)) throw new Error('NOT_SYSTEM_OWNED');
+-    if(req.action==='remove'){fn('removeEntity');await chart.removeEntity(req.entity_id);return {removed:!inventory().some(x=>x.id===String(req.entity_id)),state:state()};}
++    if(req.action==='remove'){fn('removeEntity');guard();await chart.removeEntity(req.entity_id);guard();return {removed:!inventory().some(x=>x.id===String(req.entity_id)),state:state()};}
+     if(typeof s.setPoints!=='function'||typeof s.setProperties!=='function') throw new Error('DRAWING_UPDATE_UNAVAILABLE');
++    guard();
+     await s.setPoints(req.item.points);
++    // The first setter may yield; revalidate target AND the points-only state.
++    // A concurrent human text/style edit cannot be overwritten by the second setter.
++    guard();
++    const middle=inventory().find(x=>x.id===String(req.entity_id));
++    const intendedMiddle={...actual,points:req.item.points};
++    if(!eq(middle,intendedMiddle))throw new Error('MANUAL_EDIT_BETWEEN_SETTERS');
+     await s.setProperties({...req.item.overrides,text:req.item.text});
++    guard();
+     return {entity_id:String(req.entity_id),state:state()};
+   }
+   if (req.action === 'save') {
+--- /dev/null
++++ b/src/global_market_intelligence/opportunities/native/viewport_v11.js
+@@ -0,0 +1,120 @@
++/* Capability-checked Desktop viewport acquisition, not a Charting Library promise.
++ * Actual series/time/price coordinates are read. Text and manual-object envelopes
++ * are conservative canvas estimates, NEVER labelled native rendered text bounds.
++ * Missing coordinate capabilities fail closed; no guessed screen/price scale.
++ */
++async function gmiViewportV11(req,chart,ms,guard,state,inventory) {
++  const fail=message=>{throw new Error(message);};
++  const number=x=>typeof x==='number'&&Number.isFinite(x);
++  const need=(obj,name)=>{if(typeof obj?.[name]!=='function')fail('VIEWPORT_METHOD_UNAVAILABLE:'+name);};
++  const model=chart._chartWidget?.model?.();
++  const ts=model?.timeScale?.(),ps=ms?.priceScale?.(),bars=ms?.bars?.();
++  for(const n of ['width','indexToCoordinate'])need(ts,n);
++  for(const n of ['height','coordinateToPrice','priceToCoordinate'])need(ps,n);
++  for(const n of ['firstIndex','lastIndex','valueAt'])need(bars,n);
++  need(ms,'firstValue');
++  const base=ms.firstValue();
++  const firstValue=typeof base==='number'?base:base?.value;
++  const width=ts.width(),height=ps.height();
++  if(!number(firstValue)||!number(width)||!number(height)||width<100||height<100||width>20000||height>20000)
++    fail('VIEWPORT_DIMENSIONS_OR_FIRST_VALUE_INVALID');
++  const initial=guard();
++  const end=bars.lastIndex(),start=bars.firstIndex();
++  if(!Number.isInteger(start)||!Number.isInteger(end)||end-start>20000||end<start)fail('VIEWPORT_BAR_LIMIT');
++  const grid={},allGrid={},visible=[];
++  let priorX=null,priorTime=null;
++  for(let i=start;i<=end;i++){
++    const b=bars.valueAt(i);if(!b)continue;
++    const x=ts.indexToCoordinate(i);
++    if(!number(x)||!number(b[0])||!Number.isInteger(b[0]))fail('VIEWPORT_TIME_GRID_INVALID');
++    allGrid[String(b[0])]=x;
++    if(x<0||x>width)continue;
++    if((priorX!==null&&x<=priorX)||(priorTime!==null&&b[0]<=priorTime))fail('VIEWPORT_NONMONOTONIC_TIME_GRID');
++    grid[String(b[0])]=x;priorX=x;priorTime=b[0];visible.push({x,bar:b});
++  }
++  if(visible.length<2)fail('VIEWPORT_TOO_FEW_VISIBLE_BARS');
++  const priceGrid=[];
++  // Direct native inversion samples. This also supports native logarithmic scales
++  // without replacing their transform with an assumed mathematical log formula.
++  for(let y=0;y<=height;y+=height/128){
++    const price=ps.coordinateToPrice(y,firstValue),back=ps.priceToCoordinate(price,firstValue);
++    if(!number(price)||!number(back)||Math.abs(back-y)>0.25)fail('VIEWPORT_PRICE_ROUNDTRIP_FAILED');
++    priceGrid.push([y,price]);
++  }
++  if(priceGrid.some((v,i)=>i&&v[1]>=priceGrid[i-1][1]))fail('INVERTED_OR_NONMONOTONIC_PRICE_SCALE');
++  const layoutItems=req.items;
++  if(!Array.isArray(layoutItems)||layoutItems.length>220)fail('VIEWPORT_ITEM_LIMIT');
++  const family='Arial'; // Explicit estimator family, not an assertion about native font settings.
++  if(document.fonts?.ready)await document.fonts.ready;
++  guard();
++  const context=document.createElement('canvas').getContext('2d');
++  if(!context)fail('CANVAS_TEXT_METRICS_UNAVAILABLE');
++  const measure=(text,size)=>{
++    if(!number(size)||size<10||size>72||typeof text!=='string'||text.length>16000)fail('VIEWPORT_TEXT_METRICS_INVALID');
++    context.font=`${size}px ${family}`;
++    const rows=text.split('\n');
++    const widths=rows.map(line=>context.measureText(line).width);
++    if(widths.some(x=>!number(x)))fail('VIEWPORT_TEXT_WIDTH_INVALID');
++    return [Math.ceil(Math.max(0,...widths)*1.15+16),Math.ceil(rows.length*size*1.45+12)];
++  };
++  const textSizes={};
++  for(const item of layoutItems){
++    if(item.shape==='text'&&!item.retired)textSizes[item.marker]=measure(item.text,item.overrides?.fontsize||14);
++  }
++  const spacing=Math.min(...visible.slice(1).map((v,i)=>v.x-visible[i].x));
++  const obstacles=[];
++  for(const {x,bar} of visible){
++    const top=ps.priceToCoordinate(bar[2],firstValue),bottom=ps.priceToCoordinate(bar[3],firstValue);
++    if(!number(top)||!number(bottom)||top>bottom)fail('VIEWPORT_CANDLE_COORDINATES_INVALID');
++    obstacles.push([x-Math.max(2,spacing*0.38),Math.max(0,top),Math.max(4,spacing*0.76),Math.max(1,Math.min(height,bottom)-Math.max(0,top))]);
++  }
++  // Reserve the bottom band conservatively for possible volume overlay. This is
++  // not a measurement of actual volume pane geometry and remains in the receipt.
++  const reserve=0.28;
++  const workRect=[8,32,width-16,height*(1-reserve)-40];
++  if(workRect[2]<=0||workRect[3]<=0)fail('VIEWPORT_NO_WORK_AREA');
++  const wanted=new Set(layoutItems.map(i=>i.marker));
++  const walkText=obj=>{
++    if(!obj||typeof obj!=='object')return [];
++    return Object.entries(obj).flatMap(([k,v])=>k==='text'&&typeof v==='string'?[v]:walkText(v));
++  };
++  const findSize=obj=>{
++    if(!obj||typeof obj!=='object')return null;
++    for(const [k,v] of Object.entries(obj)){if(k==='fontsize'&&number(v))return v;const n=findSize(v);if(n!==null)return n;}
++    return null;
++  };
++  const manualUnresolved=[];
++  for(const shape of inventory()){
++    if(shape.unreadable){manualUnresolved.push(shape.id);continue;}

@@ -1,0 +1,236 @@
++    const text=walkText(shape.properties).join('\n');
++    // Only exact plan-owned objects are omitted. Other [GMI:] objects are not
++    // automatically owned and must remain obstacles until reconciliation.
++    if([...wanted].some(tag=>text.includes(tag)))continue;
++    const points=shape.points||[],mapped=points.map(p=>[allGrid[String(p.time)],ps.priceToCoordinate(p.price,firstValue)]);
++    if(!points.length){manualUnresolved.push(shape.id);continue;}
++    if(mapped.every(p=>p[0]===undefined)){
++      // Rays and lines can cross the viewport even when both anchors are offscreen.
++      manualUnresolved.push(shape.id);continue;
++    }
++    if(mapped.some(p=>!number(p[0])||!number(p[1]))){manualUnresolved.push(shape.id);continue;}
++    if(points.length===1&&String(shape.name).toLowerCase().includes('text')){
++      const [w,h]=measure(text,findSize(shape.properties)||14);
++      // Enclose either left/right and top/bottom anchor convention for manual text.
++      obstacles.push([mapped[0][0]-w,mapped[0][1]-h,2*w,2*h]);
++    }else if(points.length>=2){
++      const xs=mapped.map(p=>p[0]),ys=mapped.map(p=>p[1]);
++      obstacles.push([Math.min(...xs)-4,Math.min(...ys)-4,Math.max(...xs)-Math.min(...xs)+8,Math.max(...ys)-Math.min(...ys)+8]);
++    }else {manualUnresolved.push(shape.id);}
++  }
++  const final=guard();
++  if(initial.chart_instance!==final.chart_instance||initial.document_epoch!==final.document_epoch||initial.interaction_epoch!==final.interaction_epoch)
++    fail('VIEWPORT_CONTEXT_CHANGED_DURING_MEASURE');
++  return {state:final,view:{product_id:req.product_id,timeframe:req.timeframe,data_cutoff:req.data_cutoff,
++    time_x:grid,price_grid:priceGrid,price_low:priceGrid.at(-1)[1],price_high:priceGrid[0][1],
++    price_y_top:0,price_y_bottom:height,scale:'native_samples',work_rect:workRect,obstacles,text_sizes:textSizes,
++    bbox_basis:'CANVAS_CONSERVATIVE_ESTIMATE',font_estimator:family,volume_reserved_fraction:reserve,
++    manual_bounds_unresolved:manualUnresolved,coordinate_basis:'ACTUAL_NATIVE_SERIES_AND_SCALES',
++    text_anchor_basis:'TOP_LEFT_ASSUMPTION_REQUIRES_NATIVE_ACCEPTANCE',
++    acquisition_status:'MEASURED_COORDINATES_ESTIMATED_TEXT_NOT_VISUAL_ACCEPTANCE',
++    device_pixel_ratio:window.devicePixelRatio||1,viewport_css:{width,height},captured_epoch:Date.now()}};
++}
+--- a/src/global_market_intelligence/opportunities/operations.py
++++ b/src/global_market_intelligence/opportunities/operations.py
+@@ -100,7 +100,7 @@
+     for item in annotations:
+         if set(item)!={'object_key','timeframe','time_anchor','price_anchor','label','owner'}:
+             raise ValueError('TV objects require time/price anchors, not pixels')
+-        if item['owner']!='GMI_OPPORTUNITY' or item['timeframe'] not in {'1D','1W','4H','1H'}:
++        if item['owner']!='GMI_OPPORTUNITY' or item['timeframe'] not in {'1M','1W','1D','12H','4H','1H'}:
+             raise ValueError('never mutate human-owned objects')
+         from ..market_integrity import finite
+         if finite(item['price_anchor']) is None:
+--- /dev/null
++++ b/src/global_market_intelligence/opportunities/periods_v11.py
+@@ -0,0 +1,117 @@
++"""Calendar periods, not nominal 30-day months or partial-week finalization.
++
++This is interval plumbing, not a Wyckoff rule. The caller supplies the exact
++exchange calendar and chart timestamp convention; no product proxy is inferred.
++"""
++from __future__ import annotations
++from datetime import date, datetime, timedelta, timezone
++from ..market_integrity import exchange_calendar
++
++UTC = timezone.utc
++HOURS = {'1H': 1, '4H': 4, '12H': 12, '1D': 24, '1W': 168}
++
++
++def next_month(day: date) -> date:
++    return date(day.year + (day.month == 12), 1 if day.month == 12 else day.month + 1, 1)
++
++
++def period_dates(day: date, timeframe: str) -> tuple[date, date]:
++    """Return inclusive start, exclusive end in exchange SESSION-LABEL dates."""
++    if timeframe == '1M':
++        start = day.replace(day=1)
++        return start, next_month(start)
++    if timeframe == '1W':
++        start = day - timedelta(days=day.weekday())
++        return start, start + timedelta(days=7)
++    if timeframe == '1D':
++        return day, day + timedelta(days=1)
++    raise ValueError('CALENDAR_PERIOD_REQUIRED')
++
++
++def period_bounds(inst, timeframe: str, day: date):
++    start, end = period_dates(day, timeframe)
++    if inst.calendar_id == '24/7_UTC':
++        return (datetime.combine(start, datetime.min.time(), UTC),
++                datetime.combine(end, datetime.min.time(), UTC), start.isoformat())
++    cal = exchange_calendar(inst.calendar_id, start.year)
++    sessions = cal.sessions_in_range(start.isoformat(), (end - timedelta(days=1)).isoformat())
++    if not len(sessions):
++        raise ValueError('EMPTY_CALENDAR_PERIOD')
++    return (cal.session_open(sessions[0]).to_pydatetime(),
++            cal.session_close(sessions[-1]).to_pydatetime(), start.isoformat())
++
++
++def utc_interval(at: datetime, timeframe: str):
++    if at.tzinfo is None or at.utcoffset() != timedelta(0):
++        raise ValueError('UTC_INTERVAL_TIME_REQUIRED')
++    if at.minute or at.second or at.microsecond:
++        raise ValueError('NATIVE_BAR_ALIGNMENT_MISMATCH')
++    if timeframe == '1M':
++        if at.day != 1 or at.hour:
++            raise ValueError('NATIVE_MONTH_ALIGNMENT_MISMATCH')
++        return at, datetime.combine(next_month(at.date()), datetime.min.time(), UTC), at.date().isoformat()
++    if timeframe not in HOURS:
++        raise ValueError('UNSUPPORTED_BAR_INTERVAL')
++    hours = HOURS[timeframe]
++    if (timeframe in {'1D', '1W'} and at.hour) or (timeframe in {'4H', '12H'} and at.hour % hours):
++        raise ValueError('NATIVE_BAR_ALIGNMENT_MISMATCH')
++    if timeframe == '1W' and at.weekday() != 0:
++        raise ValueError('NATIVE_WEEK_ALIGNMENT_MISMATCH')
++    return at, at + timedelta(hours=hours), at.date().isoformat()
++
++
++def native_period_interval(at: datetime, timeframe: str, inst, profile: dict):
++    """Accept only an explicit, matching chart period timestamp representation.
++
++    Weekly UTC-period-start is the legacy convention; a new exchange monthly
++    path must be configured, not guessed from its ticker.
++    """
++    modes = profile.get('period_timestamp_modes', {})
++    mode = modes.get(timeframe, 'UTC_PERIOD_START' if timeframe == '1W' else None)
++    if mode not in {'UTC_PERIOD_START', 'FIRST_SESSION_DATE', 'SESSION_OPEN'}:
++        raise ValueError('PERIOD_TIMESTAMP_MODE_REQUIRED:' + timeframe)
++    # A futures session can open in the previous month. Search neighboring
++    # session-label periods, then require a unique EXACT timestamp match.
++    candidate_days = {at.date(), at.date() + timedelta(days=2), at.date() - timedelta(days=2)}
++    matches = {}
++    for day in candidate_days:
++        start, end = period_dates(day, timeframe)
++        try:
++            opened, closed, label = period_bounds(inst, timeframe, start)
++        except ValueError as exc:
++            if str(exc) == 'EMPTY_CALENDAR_PERIOD':
++                continue
++            raise
++        cal = exchange_calendar(inst.calendar_id, start.year)
++        sessions = cal.sessions_in_range(start.isoformat(), (end - timedelta(days=1)).isoformat())
++        if mode == 'UTC_PERIOD_START':
++            expected = datetime.combine(start, datetime.min.time(), UTC)
++        elif mode == 'FIRST_SESSION_DATE':
++            expected = datetime.combine(sessions[0].date(), datetime.min.time(), UTC)
++        else:
++            expected = opened
++        if at == expected:
++            matches[label] = opened, closed, label
++    if len(matches) != 1:
++        raise ValueError('NATIVE_PERIOD_TIMESTAMP_UNRESOLVED:' + timeframe)
++    return next(iter(matches.values()))
++
++
++def latest_period_close(inst, timeframe: str, now: datetime):
++    """Last complete exchange/calendar period; not the last session SO FAR."""
++    from zoneinfo import ZoneInfo
++    day = now.date() if inst.calendar_id == '24/7_UTC' else now.astimezone(ZoneInfo(inst.timezone)).date()
++    closes = []
++    # A bounded scan of whole periods handles holidays, long closures, year
++    # boundaries and overnight sessions without truncating the final group.
++    start, _ = period_dates(day + timedelta(days=2), timeframe)
++    for _ in range(8):
++        try:
++            _, closed, _ = period_bounds(inst, timeframe, start)
++            if closed <= now:
++                closes.append(closed)
++        except ValueError as exc:
++            if str(exc) != 'EMPTY_CALENDAR_PERIOD':
++                raise
++        start, _ = period_dates(start - timedelta(days=1), timeframe)
++    return max(closes).isoformat() if closes else None
+--- a/src/global_market_intelligence/opportunities/presentation.py
++++ b/src/global_market_intelligence/opportunities/presentation.py
+@@ -20,7 +20,7 @@
+     'INVALIDATED_BEFORE_EXPECTED_EVENT':'预期事件前已失效','AMBIGUOUS':'同根K线先后不明',
+     'EXPIRED_UNTRIGGERED':'到期未触发','UNRESOLVED_DATA':'证据不足',
+     'CANCELLED_UNEVALUATED':'已取消，未评价','OVERDUE_UNEVALUATED':'已到期，待补评估'}
+-TF = {'1D':'日线','1W':'周线','4H':'四小时线','1H':'一小时线'}
++TF = {'1M':'月线','1W':'周线','1D':'日线','12H':'十二小时线','4H':'四小时线','1H':'一小时线'}
+ INDICATORS = {'open':'开盘价','high':'最高价','low':'最低价','close':'收盘价','volume':'成交量',
+               'sma':'收盘价均值','atr':'平均真实波幅','relative_volume':'相对成交量','close_location':'收盘位置比例'}
+ OPERATORS = {'gt':'大于','ge':'大于等于','lt':'小于','le':'小于等于','eq':'等于'}
+--- a/src/global_market_intelligence/opportunities/sessions.py
++++ b/src/global_market_intelligence/opportunities/sessions.py
+@@ -10,16 +10,11 @@
+     if instrument.calendar_id=='24/7_UTC':
+         if instrument.calendar_version!='24/7_UTC-v1':
+             return 'CALENDAR_IMPLEMENTATION_VERSION_MISMATCH'
+-        hours={'1H':1,'4H':4,'1D':24,'1W':168}[bar.timeframe]
+-        if closed-opened != timedelta(hours=hours) or opened.minute or opened.second or opened.microsecond:
+-            return 'INVALID_BAR_INTERVAL'
+-        if bar.timeframe=='4H' and opened.hour%4:
+-            return 'INVALID_BAR_ALIGNMENT'
+-        if bar.timeframe in {'1D','1W'} and opened.hour:
+-            return 'INVALID_BAR_ALIGNMENT'
+-        if bar.timeframe=='1W' and opened.weekday()!=0:
+-            return 'INVALID_WEEK_ALIGNMENT'
+-        return 'OK'
++        from .periods_v11 import utc_interval
++        try:
++            op,cl,_=utc_interval(opened,bar.timeframe)
++            return 'OK' if closed==cl and opened==op else 'INVALID_BAR_INTERVAL'
++        except ValueError:return 'INVALID_BAR_INTERVAL'
+     if instrument.calendar_id in {'UNKNOWN','UNRESOLVED'} or not instrument.calendar_version.startswith('exchange_calendars:'):
+         return 'HOST_SESSION_ADAPTER_REQUIRED'
+     try:
+@@ -34,17 +29,18 @@
+             if opened!=c.session_open(day.isoformat()).to_pydatetime() or closed!=c.session_close(day.isoformat()).to_pydatetime():
+                 return 'SESSION_BOUNDARY_MISMATCH'
+             return 'OK'
+-        if bar.timeframe=='1W':
+-            monday=day-timedelta(days=day.weekday())
+-            days=c.sessions_in_range(monday.isoformat(),(monday+timedelta(days=6)).isoformat())
+-            if not len(days):return 'NON_SESSION_WEEK'
+-            return 'OK' if (opened==c.session_open(days[0]).to_pydatetime() and closed==c.session_close(days[-1]).to_pydatetime()) else 'SESSION_BOUNDARY_MISMATCH'
++        if bar.timeframe in {'1W','1M'}:
++            from .periods_v11 import period_bounds, period_dates
++            start,_=period_dates(day,bar.timeframe)
++            if day!=start:return 'PERIOD_SESSION_LABEL_MISMATCH'
++            op,cl,_=period_bounds(instrument,bar.timeframe,day)
++            return 'OK' if opened==op and closed==cl else 'SESSION_BOUNDARY_MISMATCH'
+         if instrument.session_definition.endswith(':SESSION_OPEN'):
+             import pandas as pd
+             if not c.is_session(day.isoformat()):return 'NON_SESSION_DATE'
+             if not pd.isna(c.session_break_start(day.isoformat())):return 'HOST_SESSION_ADAPTER_REQUIRED'
+             op=c.session_open(day.isoformat()).to_pydatetime();cl=c.session_close(day.isoformat()).to_pydatetime()
+-            width=timedelta(hours={'1H':1,'4H':4}[bar.timeframe])
++            width=timedelta(hours={'1H':1,'4H':4,'12H':12}[bar.timeframe])
+             good=(op<=opened<cl and (opened-op).total_seconds()%width.total_seconds()==0 and closed==min(opened+width,cl))
+             return 'OK' if good else 'SESSION_BOUNDARY_MISMATCH'
+         return 'HOST_SESSION_ADAPTER_REQUIRED' 
+@@ -74,7 +70,7 @@
+ The frozen age budget still applies when a later market close is missing. This
+ exception only uses session calendars whose implementation is checked above.
+ """
+-    if instrument.calendar_id not in {'24/7_UTC','UNKNOWN','UNRESOLVED'} and timeframe in {'1D','4H','1H'}:
++    if instrument.calendar_id not in {'24/7_UTC','UNKNOWN','UNRESOLVED'} and timeframe in {'1M','1W','1D','12H','4H','1H'}:
+         try:
+             from zoneinfo import ZoneInfo
+             localday=as_of.astimezone(ZoneInfo(instrument.timezone)).date().isoformat()
+@@ -84,7 +80,7 @@
+             if expected>as_of:
+                 day=c.previous_session(day)
+                 expected=c.session_close(day).to_pydatetime()

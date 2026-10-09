@@ -1,0 +1,173 @@
+-            if timeframe in {'4H','1H'}:
++            if timeframe in {'1M','1W','12H','4H','1H'}:
+                 from .native.scheduling import expected_close
+                 raw = expected_close(instrument,timeframe,as_of.isoformat(),grace_seconds=0)
+                 if raw is None:return True
+@@ -105,7 +101,7 @@
+         return False
+     if tf == '1D':
+         return daily_history_contiguous(bars, instrument)
+-    if tf not in {'4H', '1H', '1W'}:
++    if tf not in {'12H', '4H', '1H', '1W', '1M'}:
+         return False
+     if instrument.calendar_id == '24/7_UTC':
+         return all(timestamp(a.closed_at) == timestamp(b.opened_at) for a, b in zip(bars, bars[1:]))
+@@ -114,8 +110,13 @@
+             if timestamp(a.closed_at) == timestamp(b.opened_at):
+                 continue
+             c = exchange_calendar(instrument.calendar_id, timestamp(b.closed_at).year)
+-            if tf == '1W':
+-                expected = c.next_session(c.date_to_session(timestamp(a.closed_at).date().isoformat(), direction='previous'))
++            if tf in {'1W','1M'}:
++                from .periods_v11 import period_dates, period_bounds
++                from datetime import date
++                _,following=period_dates(date.fromisoformat(a.session_id),tf)
++                op,_,label=period_bounds(instrument,tf,following)
++                if timestamp(b.opened_at)!=op or b.session_id!=label:return False
++                continue
+             else:
+                 if not instrument.session_definition.endswith(':SESSION_OPEN'):
+                     return False
+--- a/src/global_market_intelligence/opportunities/timeframes.py
++++ b/src/global_market_intelligence/opportunities/timeframes.py
+@@ -5,8 +5,21 @@
+ """
+ from copy import deepcopy
+ 
+-RESEARCH_FRAMES = ('1D', '4H')
+-CONTEXT_FRAME = {'1D': '1W', '4H': '1D'}
++RESEARCH_FRAMES = ('1M', '1W', '1D', '12H', '4H')
++CONTEXT_FRAME = {'1M': None, '1W': '1M', '1D': '1W', '12H': '1D', '4H': '1D'}
++MINIMUM_KEYS = {'1M': ('min_monthly_bars', 24), '1W': ('min_weekly_bars', 100),
++                '1D': ('min_daily_bars', 200), '12H': ('min_12h_bars', 200),
++                '4H': ('min_4h_bars', 200)}
++CAPTURE_DEPTHS = {'1M': 240, '1W': 260, '1D': 750, '12H': 750, '4H': 750, '1H': 300}
++ENGINE_INTERVALS = {'1M': '1mo', '1W': '1wk', '1D': '1d', '12H': '12h', '4H': '4h', '1H': '1h'}
++FRESHNESS_HOURS = {'1M': 800, '1W': 240, '1D': 48, '12H': 24, '4H': 8, '1H': 2}
++ADVISORY_FRAMES = {'1M': ('1W', '1D'), '1W': ('1D', '4H'),
++                   '1D': ('4H', '1H'), '12H': ('4H', '1H'), '4H': ('1H',)}
++
++
++def minimum_bars(config, timeframe):
++    key, default = MINIMUM_KEYS[timeframe]
++    return config.get(key, default)
+ 
+ 
+ def research_frame(value):
+@@ -25,7 +38,7 @@
+         frames = [product.get('analysis_timeframe', '1D')]
+     if (not isinstance(frames, list) or not frames or len(set(frames)) != len(frames)
+             or any(tf not in RESEARCH_FRAMES for tf in frames)):
+-        raise ValueError('STRUCTURE_TIMEFRAMES_MUST_BE_UNIQUE_1D_OR_4H')
++        raise ValueError('STRUCTURE_TIMEFRAMES_MUST_BE_UNIQUE_SUPPORTED_RESEARCH_FRAMES')
+     if 'analysis_timeframe' in product and product['analysis_timeframe'] not in frames:
+         raise ValueError('LEGACY_AND_MULTIFRAME_SELECTION_CONFLICT')
+     return [tf for tf in RESEARCH_FRAMES if tf in frames]
+@@ -46,7 +59,8 @@
+         item = deepcopy(product)
+         item['analysis_timeframe'] = tf
+         item['context_timeframe'] = CONTEXT_FRAME[tf]
+-        item['layout_id'] = layouts.get(tf, product.get('layout_id') if tf == legacy_frame else None)
++        shared=product.get('layout_mode')=='SEQUENTIAL_SAME_PRODUCT'
++        item['layout_id'] = layouts.get(tf, product.get('layout_id') if tf == legacy_frame or shared else None)
+         # Capture can use the same product's existing chart read-only until a
+         # separate delivery layout is bound. No writes use this fallback.
+         item['capture_layout_id'] = (item['layout_id'] or product.get('layout_id')
+@@ -59,9 +73,9 @@
+     if timeframe not in RESEARCH_FRAMES:
+         raise ValueError('UNSUPPORTED_STRUCTURE_TIMEFRAME')
+     if level == 'READY_FOR_HUMAN':
+-        return '1H'
++        return ADVISORY_FRAMES[timeframe][-1]
+     if level == 'FOCUS':
+-        return '4H' if timeframe == '1D' else '1H'
++        return ADVISORY_FRAMES[timeframe][0]
+     return timeframe
+ 
+ 
+--- a/src/global_market_intelligence/opportunities/workflow.py
++++ b/src/global_market_intelligence/opportunities/workflow.py
+@@ -94,7 +94,7 @@
+         if not isinstance(routes,list) or not routes or len(set(routes))!=len(routes) or not set(routes)<=ROUTES:
+             raise ValueError('invalid independent discovery routes')
+         frames=universe.get('analysis_timeframes',{}).get(key,['1D'])
+-        if not isinstance(frames,list) or not frames or len(frames)!=len(set(frames)) or not set(frames)<={'1D','4H'}:
++        if not isinstance(frames,list) or not frames or len(frames)!=len(set(frames)) or not set(frames)<={'1M','1W','1D','12H','4H'}:
+             raise ValueError('invalid selected research timeframes')
+         for route in routes:
+             for tf in (frames if route=='STRUCTURE' else ['1D']):
+--- /dev/null
++++ b/tests/native_viewport_guard_v11.cjs
+@@ -0,0 +1,68 @@
++// Synthetic chart adapter tests. This runs the real native wrapper in a VM, not TV.
++const assert=require('node:assert/strict');
++const fs=require('node:fs');const vm=require('node:vm');const path=require('node:path');
++const source=path.join(__dirname,'../src/global_market_intelligence/opportunities/native');
++const js=fs.readFileSync(path.join(source,'viewport_v11.js'),'utf8')+'\n'+fs.readFileSync(path.join(source,'tv_native.js'),'utf8');
++function fixture(){
++ const env={symbol:'SYNTH:UNIT',res:'240',shapes:[],writes:0,modifyHook:null,fontHook:null,scale:1};
++ const bars=Array.from({length:20},(_,i)=>[1000+i*14400,100,105,95,101,1000]);
++ const ps={height:()=>600,coordinateToPrice:y=>120-y/15,priceToCoordinate:p=>(120-p)*15};
++ const ts={width:()=>1000,indexToCoordinate:i=>50+i*45};
++ const ms={symbolInfo:()=>({name:'UNIT',volume_type:'base',session:'24x7'}),bars:()=>({firstIndex:()=>0,lastIndex:()=>bars.length-1,valueAt:i=>bars[i]}),priceScale:()=>ps,firstValue:()=>({value:100})};
++ const model={mainSeries:()=>ms,timeScale:()=>ts};
++ const shapeObj=id=>({getPoints:()=>env.shapes.find(s=>s.id===id).points,getProperties:()=>env.shapes.find(s=>s.id===id).properties,
++  setPoints:async p=>{env.shapes.find(s=>s.id===id).points=JSON.parse(JSON.stringify(p));if(env.modifyHook)env.modifyHook();},
++  setProperties:async p=>{env.writes++;env.shapes.find(s=>s.id===id).properties=p;}});
++ const chart={_chartWidget:{model:()=>model},symbol:()=>env.symbol,resolution:()=>env.res,chartType:()=>1,
++  symbolExt:()=>({symbol:env.symbol,backadjustment:env.scale}),
++  getAllShapes:()=>env.shapes.map(s=>({id:s.id,name:s.name})),getShapeById:shapeObj,
++  createShape:(point,opts)=>{env.writes++;env.shapes.push({id:'new'+env.writes,name:opts.shape,points:[point],properties:opts.overrides});return Promise.resolve('new'+env.writes);},
++  createMultipointShape:()=>{env.writes++;return 'multi';},removeEntity:id=>{env.writes++;env.shapes=env.shapes.filter(s=>s.id!==id);},
++  setSymbol:async v=>{env.symbol=v;},setResolution:async v=>{env.res=v;}};
++ const listeners={};const root={_activeChartWidgetWV:{value:()=>env.active||chart}};
++ const context={window:{TradingViewApi:root,devicePixelRatio:2},document:{readyState:'complete',
++  addEventListener:(n,f)=>{listeners[n]=f;},querySelector:()=>null,
++  fonts:{get ready(){return Promise.resolve().then(()=>env.fontHook&&env.fontHook());}},
++  createElement:()=>({getContext:()=>({font:'',measureText:t=>({width:t.length*9})})})},
++  location:{pathname:'/chart/LAYOUT/',origin:'https://www.tradingview.com'},performance:{timeOrigin:123456},setTimeout,clearTimeout,console};
++ vm.createContext(context);vm.runInContext(js,context);
++ env.call=async req=>JSON.parse(JSON.stringify(await context.gmiNative(req)));
++ env.chart=chart;env.ms=ms;env.ps=ps;env.ts=ts;env.interact=()=>listeners.pointerdown({isTrusted:true});
++ env.item={marker:'[GMI:test]',shape:'text',points:[{time:1000+10*14400,price:105}],text:'4H 当前结构\n[GMI:test]',overrides:{fontsize:14}};
++ env.witness=async()=>env.call({action:'state'});
++ return env;
++}
++const tests=[];const test=(name,fn)=>tests.push([name,fn]);
++test('viewport reads native transforms and actual time grid',async()=>{
++ const e=fixture(),w=await e.witness();const r=await e.call({action:'viewport',expected_target:w,items:[e.item],product_id:'SYNTH',timeframe:'4H',data_cutoff:'2026-01-01'});
++ assert.equal(r.view.time_x[String(1000+10*14400)],500);assert.equal(r.view.price_grid[0][1],120);
++ assert.equal(r.view.price_low,80);assert.equal(r.view.bbox_basis,'CANVAS_CONSERVATIVE_ESTIMATE');assert.equal(e.writes,0);
++});
++test('symbol changed after witness means zero write',async()=>{const e=fixture(),w=await e.witness();e.symbol='SYNTH:OTHER';await assert.rejects(e.call({action:'create',expected_target:w,item:e.item}),/TARGET_CHANGED:symbol/);assert.equal(e.writes,0);});
++test('pane changed means zero write',async()=>{const e=fixture(),w=await e.witness();e.active={...e.chart};await assert.rejects(e.call({action:'create',expected_target:w,item:e.item}),/TARGET_CHANGED:chart_instance/);assert.equal(e.writes,0);});
++test('same symbol after manual round trip remains stale',async()=>{const e=fixture(),w=await e.witness();e.interact();await assert.rejects(e.call({action:'create',expected_target:w,item:e.item}),/interaction_epoch/);assert.equal(e.writes,0);});
++test('price modifiers cannot change unnoticed',async()=>{const e=fixture(),w=await e.witness();e.scale=2;await assert.rejects(e.call({action:'create',expected_target:w,item:e.item}),/MODIFIER_CHANGED/);assert.equal(e.writes,0);});
++test('resolution changed means zero write',async()=>{const e=fixture(),w=await e.witness();e.res='1D';await assert.rejects(e.call({action:'create',expected_target:w,item:e.item}),/resolution/);assert.equal(e.writes,0);});
++test('unchanged target can create a native-shaped object',async()=>{const e=fixture(),w=await e.witness();await e.call({action:'create',expected_target:w,item:e.item});assert.equal(e.writes,1);});
++test('user edit between setters is preserved',async()=>{
++ const e=fixture();e.shapes=[{id:'a',name:'text',points:[{time:1000,price:100}],properties:{text:'[GMI:test] old'}}];
++ const expected=JSON.parse(JSON.stringify(e.shapes[0])),w=await e.witness();e.modifyHook=()=>{e.shapes[0].properties.text='Human takes ownership';};
++ await assert.rejects(e.call({action:'modify',expected_target:w,entity_id:'a',marker:'[GMI:test]',expected,item:e.item}),/MANUAL_EDIT_BETWEEN/);
++ assert.equal(e.shapes[0].properties.text,'Human takes ownership');assert.equal(e.writes,0);
++});
++test('user switch between setters stops second mutation',async()=>{
++ const e=fixture();e.shapes=[{id:'a',name:'text',points:[{time:1000,price:100}],properties:{text:'[GMI:test] old'}}];
++ const expected=JSON.parse(JSON.stringify(e.shapes[0])),w=await e.witness();e.modifyHook=()=>{e.res='1D';};
++ await assert.rejects(e.call({action:'modify',expected_target:w,entity_id:'a',marker:'[GMI:test]',expected,item:e.item}),/resolution/);assert.equal(e.writes,0);
++});
++test('missing native inverse transform does not guess a scale',async()=>{const e=fixture();delete e.ps.coordinateToPrice;await assert.rejects(e.call({action:'viewport',items:[e.item]}),/METHOD_UNAVAILABLE/);assert.equal(e.writes,0);});
++test('bad native round trip is rejected',async()=>{const e=fixture();e.ps.priceToCoordinate=()=>42;await assert.rejects(e.call({action:'viewport',items:[e.item]}),/ROUNDTRIP/);});
++test('font await preserves target protection',async()=>{const e=fixture(),w=await e.witness();e.fontHook=()=>e.interact();await assert.rejects(e.call({action:'viewport',expected_target:w,items:[e.item]}),/interaction_epoch/);assert.equal(e.writes,0);});
++test('unresolved manual shapes are reported not hidden',async()=>{const e=fixture();e.shapes.push({id:'manual',name:'unknown',points:[],properties:{text:'keep'}});const r=await e.call({action:'viewport',items:[e.item]});assert.deepEqual(r.view.manual_bounds_unresolved,['manual']);assert.equal(e.shapes.length,1);});
++test('offscreen manual text with known time coordinates remains bounded',async()=>{const e=fixture();e.ts.indexToCoordinate=i=>-300+i*65;e.shapes.push({id:'manual',name:'text',points:[{time:1000,price:100}],properties:{text:'old'}});const r=await e.call({action:'viewport',items:[e.item]});assert.deepEqual(r.view.manual_bounds_unresolved,[]);});
++test('inverted scales remain unsupported not silently flipped',async()=>{const e=fixture();e.ps.coordinateToPrice=y=>y;e.ps.priceToCoordinate=p=>p;await assert.rejects(e.call({action:'viewport',items:[e.item]}),/INVERTED/);});
++(async()=>{
++ const failures=[];for(const [name,fn] of tests){try{await fn();console.log('PASS '+name);}catch(e){failures.push({name,error:String(e.stack)});console.error('FAIL '+name+' '+e.stack);}}
++ console.log(JSON.stringify({scope:'SYNTHETIC_NODE_VM_NOT_TRADINGVIEW',tests:tests.length,passed:tests.length-failures.length,failed:failures.length}));
++ if(failures.length)process.exitCode=1;
++})();
+--- a/tests/test_native_delivery.py
++++ b/tests/test_native_delivery.py
+@@ -126,14 +126,28 @@
+     def test_truly_later_structure_can_start_new_episode(self):

@@ -1,0 +1,220 @@
++    return {'schema_version':'tv11-asset-scope-1',
++            'requested_assets':[{'asset_key':key,'configured_instrument_ids':values,
++                                 'status':'CONFIGURED_NOT_VALIDATED' if values else 'PRODUCT_SELECTION_PENDING'}
++                                for key,values in by_asset.items()],
++            'products':products,'other_commodities':'EXPLICIT_PRODUCT_SELECTION_ONLY',
++            'configured_product_count':len(products),
++            'configured_research_track_count':sum(len(p['research_timeframes']) for p in products),
++            'supported_product_count':None,'trading_enabled':False,
++            'meaning':'Configured scope does not prove feed permission, semantic accuracy, native readback or visual acceptance.'}
+--- a/src/global_market_intelligence/opportunities/native/tradingview.py
++++ b/src/global_market_intelligence/opportunities/native/tradingview.py
+@@ -17,12 +17,45 @@
+ from urllib.request import ProxyHandler, build_opener
+ from ..contracts import digest
+ 
+-JS = Path(__file__).with_name('tv_native.js').read_text(encoding='utf-8')
+-RESOLUTIONS={'1D':'1D','1W':'1W','4H':'240','1H':'60'}
+-ALIASES={'D':'1D','W':'1W','1D':'1D','1W':'1W','240':'240','60':'60'}
++JS = Path(__file__).with_name('viewport_v11.js').read_text(encoding='utf-8')+'\n'+Path(__file__).with_name('tv_native.js').read_text(encoding='utf-8')
++RESOLUTIONS={'1M':'1M','1W':'1W','1D':'1D','12H':'720','4H':'240','1H':'60'}
++ALIASES={'M':'1M','W':'1W','D':'1D','1M':'1M','1W':'1W','1D':'1D','720':'720','240':'240','60':'60'}
+ 
+ class NativeError(RuntimeError):
+     pass
++
++
++TARGET_KEYS=('layout_id','symbol','resolution','chart_type','document_epoch','chart_instance','series_instance','interaction_epoch')
++CONTEXT_FIELDS={'ext':('symbol','exchange','type','session','adjustment','backadjustment','currencyCode','currency_code','settlement_as_close'),
++                'info':('ticker','pro_name','full_name','name','type','session','timezone','currency_code','volume_type','pricescale','minmov')}
++
++
++def target_witness(state: dict) -> dict:
++    if state.get('guard_version')!='tv11-context-2' or any(k not in state or state[k] is None for k in TARGET_KEYS):
++        raise NativeError('STABLE_NATIVE_TARGET_WITNESS_REQUIRED')
++    if type(state['interaction_epoch']) is not int or state['interaction_epoch']<0:
++        raise NativeError('NATIVE_INTERACTION_GENERATION_INVALID')
++    return {**{k:deepcopy(state[k]) for k in TARGET_KEYS},
++            **{section:{k:deepcopy(state.get(section,{}).get(k)) for k in keys if k in state.get(section,{})}
++               for section,keys in CONTEXT_FIELDS.items()}}
++
++
++def assert_target(actual: dict, expected: dict, *, allow_resolution_change=False):
++    value=target_witness(actual)
++    for k in TARGET_KEYS:
++        if allow_resolution_change and k in {'resolution','series_instance'}:continue
++        if value[k]!=expected[k]:raise NativeError('TV_TARGET_CHANGED:'+k)
++    for section in CONTEXT_FIELDS:
++        if value[section]!=expected[section]:raise NativeError('TV_TARGET_MODIFIERS_CHANGED:'+section)
++    return value
++
++
++def assert_interaction_continuity(before: dict, actual: dict):
++    """Selection may change the series, never the user's pane or interaction epoch."""
++    if before.get('guard_version')!='tv11-context-2':return  # legacy read-only fixtures
++    old=target_witness(before);new=target_witness(actual)
++    for key in ('layout_id','chart_instance','document_epoch','interaction_epoch','chart_type'):
++        if old[key]!=new[key]:raise NativeError('USER_INTERVENED_NO_FORCE_RESTORE:'+key)
+ 
+ 
+ def local_endpoint(value: str) -> str:
+@@ -166,6 +199,7 @@
+         self.client=client or CDP(endpoint,layout_id=layout_id,timeout=timeout)
+         self.layout_id=layout_id;self.timeout=timeout;self.symbol=None;self.resolution=None
+         self.clock=clock or (lambda:datetime.now(timezone.utc).isoformat())
++        self._guard_witness=None
+ 
+     def connect(self):self.client.connect();return self
+     def close(self):self.client.close()
+@@ -173,15 +207,21 @@
+         req={'action':action,'layout_id':self.layout_id,**kwargs}
+         if action not in {'state','capabilities','select'}:
+             req.update(symbol=self.symbol,resolution=self.resolution)
++        if self._guard_witness is not None and action not in {'state','capabilities','select'}:
++            req['expected_target']=deepcopy(self._guard_witness)
+         return self.client.evaluate(req)
+     def capabilities(self):return self._request('capabilities')
+-    def select(self,symbol: str,timeframe: str):
+-        self._request('select',target_symbol=symbol,target_resolution=RESOLUTIONS[timeframe])
++    def select(self,symbol: str,timeframe: str, *, expected_target=None):
++        self._guard_witness=None
++        self._request('select',target_symbol=symbol,target_resolution=RESOLUTIONS[timeframe],expected_target=expected_target)
+         until=time.monotonic()+self.timeout;last=None;stable=0
+         while time.monotonic()<until:
+             s=self._request('state')
++            if expected_target:
++                assert_interaction_continuity({**expected_target,'guard_version':'tv11-context-2'},s)
+             if s['symbol']==symbol and ALIASES.get(s['resolution'])==RESOLUTIONS[timeframe]:
+                 self.symbol=symbol;self.resolution=s['resolution']
++                if expected_target:self._guard_witness=target_witness(s)
+                 raw=self._request('bars',limit=5)
+                 # Series metadata must identify the same loaded data, not just the toolbar.
+                 ids={str(s.get('info',{}).get(k,'')) for k in ('ticker','pro_name','full_name','name')}
+@@ -197,10 +237,14 @@
+ 
+     def capture(self,symbol: str,timeframe: str, *, count: int, min_bars: int):
+         if not 2<=min_bars<=count<=20000:raise ValueError('invalid capture depth')
+-        state=self.select(symbol,timeframe)
++        initial=self._request('state')
++        if initial.get('guard_version')=='tv11-context-2':
++            state=self.select(symbol,timeframe,expected_target=target_witness(initial))
++            self._guard_witness=target_witness(state)
++        else:state=self.select(symbol,timeframe)
+         data=self._request('bars',limit=count)
+         if len(data['bars'])<min_bars:
+-            end=int(time.time());seconds={'1D':86400,'1W':604800,'4H':14400,'1H':3600}[timeframe]
++            end=int(time.time());seconds={'1M':31*86400,'1D':86400,'1W':604800,'12H':43200,'4H':14400,'1H':3600}[timeframe]
+             try:self._request('history',**{'from':end-count*seconds*2,'to':end})
+             except NativeError:pass
+             until=time.monotonic()+self.timeout
+@@ -212,19 +256,58 @@
+         return {'origin':'TV_NATIVE_CDP','timeframe':timeframe,
+                 'captured_at':datetime.now(timezone.utc).isoformat(),**data}
+ 
++
++    def prepare_manifest(self, manifest: dict, dataset: dict) -> dict:
++        """Read actual native viewport, then freeze its target and layout in plan.
++
++        Coordinate capture is real native data, font boxes remain explicitly
++        conservative estimates. No production visual approval is synthesized.
++        """
++        from .layout_v11 import arrange_labels
++        capture=dataset.get('native_capture',{}).get('state',{})
++        before=self._request('state')
++        expected=target_witness(capture)
++        assert_target(before,expected,allow_resolution_change=True)
++        if before['symbol']!=manifest['symbol'] or before['layout_id']!=manifest['layout_id']:
++            raise NativeError('PREPARE_WRONG_NATIVE_TARGET')
++        self._guard_witness=None
++        selected=self.select(manifest['symbol'],manifest['timeframe'],expected_target=target_witness(before))
++        # Programmatic cycle selection is intended; any user input during it is not.
++        if selected['interaction_epoch']!=before['interaction_epoch']:
++            raise NativeError('USER_INTERVENED_DURING_PREPARE')
++        self._guard_witness=target_witness(selected)
++        measured=self._request('viewport',product_id=manifest['product_id'],timeframe=manifest['timeframe'],
++                               data_cutoff=manifest['data_cutoff'],items=manifest['items'])
++        assert_target(measured['state'],self._guard_witness)
++        view=measured['view'];view['id']=digest({k:v for k,v in view.items() if k!='captured_epoch'})
++        result=arrange_labels(manifest,view)
++        result['viewport_evidence']=view
++        result['target_witness']=deepcopy(self._guard_witness)
++        result['target_guard_scope']='PER_ACTION_CONTEXT_GUARD_ASYNC_NATIVE_SEMANTICS_REQUIRES_LOCAL_ACCEPTANCE'
++        return result
++
++    def _check_target(self):
++        if self._guard_witness is not None:
++            assert_target(self._request('state'),self._guard_witness)
++
+     def inventory(self):return self._request('inventory')
+ 
+     def save_reload(self, *, evidence_dir: Path):
+         evidence_dir.mkdir(parents=True,exist_ok=True)
++        self._check_target()
+         before=self._request('state')
+         shot=self.client.call('Page.captureScreenshot',{'format':'png'})
+         (evidence_dir/'before_reload.png').write_bytes(base64.b64decode(shot['data'],validate=True))
+         save=self._request('save')
+         if save['method']=='keyboard_required':
++            if self._guard_witness is not None:
++                raise NativeError('GUARDED_SAVE_REQUIRES_TARGETED_NATIVE_METHOD_NO_KEYBOARD_FALLBACK')
+             # TradingView's chart-save shortcut is Ctrl+S on both supported desktop platforms.
+             self.client.call('Input.dispatchKeyEvent',{'type':'keyDown','key':'s','code':'KeyS','windowsVirtualKeyCode':83,'modifiers':2})
+             self.client.call('Input.dispatchKeyEvent',{'type':'keyUp','key':'s','code':'KeyS','windowsVirtualKeyCode':83})
+         time.sleep(.75)
++        self._check_target()
++        guarded=deepcopy(self._guard_witness)
+         self.client.call('Page.reload',{'ignoreCache':True})
+         until=time.monotonic()+self.timeout
+         after=None
+@@ -239,7 +322,16 @@
+         # after confirming the new document, then read persistent drawings.
+         symbol=self.symbol; resolution=self.resolution
+         timeframe=next(k for k,v in RESOLUTIONS.items() if v==ALIASES.get(resolution))
+-        self.select(symbol,timeframe)
++        if guarded is not None:
++            # Never force the UI back after a guarded reload. Wrong restoration
++            # is a failed save/restore, not permission to seize an active chart.
++            if after.get('symbol')!=symbol or ALIASES.get(after.get('resolution'))!=ALIASES.get(resolution):
++                raise NativeError('RELOADED_TARGET_CHANGED_NO_FORCE_RESTORE')
++            current=target_witness(after)
++            for section in CONTEXT_FIELDS:
++                if current[section]!=guarded[section]:raise NativeError('RELOADED_PRODUCT_MODIFIERS_CHANGED')
++            self._guard_witness=current
++        else:self.select(symbol,timeframe)
+         result=self.inventory()
+         shot=self.client.call('Page.captureScreenshot',{'format':'png'})
+         (evidence_dir/'after_reload.png').write_bytes(base64.b64decode(shot['data'],validate=True))
+@@ -252,7 +344,15 @@
+         from .evidence_v11 import verify_frozen_manifest
+         verify_frozen_manifest(store,manifest)
+         if manifest['layout_id']!=self.layout_id:raise NativeError('MANIFEST_LAYOUT_MISMATCH')
+-        self.select(manifest['symbol'],manifest['timeframe'])
++        if manifest.get('target_witness'):
++            self._guard_witness=deepcopy(manifest['target_witness'])
++            self.symbol=manifest['symbol'];self.resolution=self._guard_witness['resolution']
++            self._check_target()
++        else:
++            # Legacy fixture/import compatibility. New production plans are
++            # prepared through prepare_manifest and always contain a witness.
++            self._guard_witness=None
++            self.select(manifest['symbol'],manifest['timeframe'])
+         subject='native-tv:'+manifest['product_id']+':'+manifest['timeframe']
+         events=store.events()
+         prior=next((e for e in reversed(events) if e['kind']=='NATIVE_TV_RECEIPT' and e['subject']==subject and e['payload'].get('complete') and e['payload'].get('layout_id')==self.layout_id),None)
+@@ -333,6 +433,7 @@
+                     'before_ids':[x['id'] for x in self.inventory()['shapes']]}
+                 store.append('NATIVE_TV_MUTATION',subject,op,at=when,
+                     idempotency_key='mutation:'+digest([job,when,op]),snapshot_sha256=store.snapshot(op))
++                self._check_target()
+                 if action=='create':self._request('create',item=item)
+                 else:self._request(action,entity_id=shape['id'],marker=item['marker'],item=item,expected=shape)
+                 writes+=1
+@@ -367,6 +468,7 @@
+             # only when the identical job has an earlier completed reload receipt.
+             if writes==0 and prior and prior['payload'].get('job_id')==job:
+                 return {**prior['payload'],'status':'ALREADY_VERIFIED_CURRENT','writes':0}
++            self._check_target()
+             actual,persistence=self.save_reload(evidence_dir=evidence_dir)
+             for item in items:
+                 found=[s for s in actual['shapes'] if item['marker'] in shape_text(s)]
+@@ -394,6 +496,8 @@
