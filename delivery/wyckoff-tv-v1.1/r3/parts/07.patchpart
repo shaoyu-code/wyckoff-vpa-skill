@@ -1,0 +1,143 @@
+                 record(store,'INTRADAY_OBSERVATION',subject,change,at);changes.append(change)
+     return changes
+ 
+--- a/src/global_market_intelligence/opportunities/native/pipeline.py
++++ b/src/global_market_intelligence/opportunities/native/pipeline.py
+@@ -14,7 +14,7 @@
+ import tempfile
+ from ..contracts import Instrument, digest, TERMINAL
+ from ..plans import propose_plan
+-from ..timeframes import tracks, track_key, same_track, research_frame, selected_frames, CONTEXT_FRAME, watch_frame, scan_key
++from ..timeframes import tracks, track_key, same_track, research_frame, selected_frames, CONTEXT_FRAME, watch_frame, scan_key, minimum_bars, CAPTURE_DEPTHS, FRESHNESS_HOURS, ADVISORY_FRAMES
+ from ..store import EventStore
+ from ..workflow import workspace_path, update, view
+ from ..cli import write_json
+@@ -30,8 +30,9 @@
+ from .notices import deliver_notices, enqueue_notices
+ from .pipeline_support import record as append
+ from .scanning import ScanTradingView, SameProductCapture, validate_scan_layout
+-from .cache import capture_signature, frame_due, DEFAULT_REVISION_SECONDS
++from .cache import capture_signature, frame_due, DEFAULT_REVISION_SECONDS, qualification_code_signature
+ from .observations import observe, validate_policy, DEFAULT_POLICY
++from .journal_v11 import validate_journal_config, freeze_main_record, main_context, journal_checkpoint
+ 
+ 
+ def utcnow():return datetime.now(timezone.utc).isoformat()
+@@ -40,32 +41,41 @@
+ def validate_config(config: dict):
+     if config.get('schema_version')!='gmi-native-monitor-v1':raise ValueError('native configuration schema required')
+     local_endpoint(config['cdp_endpoint'])
++    validate_journal_config(config.get('journal'))
+     if type(config.get('notify_desktop',False)) is not bool:raise ValueError('notify_desktop must be boolean')
+     if type(config.get('write_tv')) is not bool or type(config.get('enabled')) is not bool:raise ValueError('enabled/write_tv must be explicit booleans')
+     if not isinstance(config.get('products'),list) or len(config['products'])>50:raise ValueError('bounded selected product list required')
+-    for name,lo,hi in [('review_timeout_seconds',10,1800),('tv_timeout_seconds',2,180),('min_daily_bars',2,20000),('min_weekly_bars',2,5000),('min_4h_bars',2,20000),('poll_seconds',30,3600),('review_period_days',1,31)]:
+-        v=config.get(name,{'review_timeout_seconds':240,'tv_timeout_seconds':25,'min_daily_bars':200,'min_weekly_bars':100,'min_4h_bars':200,'poll_seconds':60,'review_period_days':14}[name])
++    for name,lo,hi in [('review_timeout_seconds',10,1800),('tv_timeout_seconds',2,180),('min_daily_bars',2,20000),('min_weekly_bars',2,5000),('min_4h_bars',2,20000),('min_monthly_bars',2,2000),('min_12h_bars',2,20000),('poll_seconds',30,3600),('review_period_days',1,31)]:
++        v=config.get(name,{'review_timeout_seconds':240,'tv_timeout_seconds':25,'min_daily_bars':200,'min_weekly_bars':100,'min_4h_bars':200,'min_monthly_bars':24,'min_12h_bars':200,'poll_seconds':60,'review_period_days':14}[name])
+         if type(v) is not int or not lo<=v<=hi:raise ValueError('invalid runtime bound:'+name)
+     validate_policy(config.get('observation_policy',DEFAULT_POLICY))
+     budgets=config.get('revision_check_seconds',DEFAULT_REVISION_SECONDS)
+-    if not isinstance(budgets,dict) or set(budgets)!=set(DEFAULT_REVISION_SECONDS) or any(type(v) is not int or not 60<=v<=604800 for v in budgets.values()):
++    if not isinstance(budgets,dict) or (not {'1D','1W','4H','1H'}<=set(budgets) or not set(budgets)<=set(DEFAULT_REVISION_SECONDS)) or any(type(v) is not int or not 60<=v<=604800 for v in budgets.values()):
+         raise ValueError('bounded per-timeframe revision check budgets required')
+     forced=config.get('force_refresh_timeframes',[])
+     if not isinstance(forced,list) or not set(forced)<=set(DEFAULT_REVISION_SECONDS):raise ValueError('invalid forced capture timeframe')
+     scan_layout=validate_scan_layout(config)
+-    seen=set();layouts=set()
++    seen=set();layouts={}
+     for p in config['products']:
+         inst=Instrument(**p['instrument'])
+         if inst.identity in seen:raise ValueError('duplicate product')
+         seen.add(inst.identity)
++        if p.get('asset_key') is not None and (not isinstance(p['asset_key'],str) or not p['asset_key'].strip()):
++            raise ValueError('EXPLICIT_ASSET_KEY_REQUIRED')
++        if '1M' in selected_frames(p) and inst.calendar_id!='24/7_UTC':
++            if p['profile'].get('period_timestamp_modes',{}).get('1M') not in {'UTC_PERIOD_START','FIRST_SESSION_DATE','SESSION_OPEN'}:
++                raise ValueError('PERIOD_TIMESTAMP_MODE_REQUIRED:1M')
++        if p.get('layout_mode') not in (None,'SEPARATE_LAYOUTS','SEQUENTIAL_SAME_PRODUCT'):
++            raise ValueError('UNKNOWN_LAYOUT_MODE')
+         for unit in tracks(p):
+             layout=unit.get('layout_id')
+             if layout:
+                 if not isinstance(layout,str) or not all(c.isalnum() or c in '_-' for c in layout):
+                     raise ValueError('saved delivery layout ID required')
+-                if layout in layouts:raise ValueError('one saved analysis layout per product and structure timeframe required')
++                if layout in layouts and not (p.get('layout_mode')=='SEQUENTIAL_SAME_PRODUCT' and layouts[layout]==inst.identity):
++                    raise ValueError('one saved analysis layout per product and structure timeframe required')
+                 if scan_layout and layout==scan_layout['layout_id']:raise ValueError('scan layout cannot be a delivery layout')
+-                layouts.add(layout)
++                layouts[layout]=inst.identity
+             elif scan_layout is None and not unit.get('capture_layout_id'):
+                 raise ValueError('one saved analysis layout per product required; or configure a dedicated empty scan layout')
+         if p['symbol']!=inst.provider_symbol or not p['symbol'].startswith(inst.venue+':'):raise ValueError('venue-qualified TradingView symbol required')
+@@ -75,7 +85,7 @@
+         if type(p['profile'].get('publication_delay_seconds',60)) is not int or not 0<=p['profile'].get('publication_delay_seconds',60)<=3600:raise ValueError('publication delay invalid')
+         if type(p.get('price_tolerance')) not in (int,float) or not __import__('math').isfinite(p['price_tolerance']) or p['price_tolerance']<=0:raise ValueError('observed price tick tolerance required')
+         for tf,count in p.get('capture_bars',{}).items():
+-            if tf not in {'1D','1W','4H','1H'} or not isinstance(count,int) or not 2<=count<=20000:raise ValueError('invalid capture limit')
++            if tf not in DEFAULT_REVISION_SECONDS or type(count) is not int or not 2<=count<=20000:raise ValueError('invalid capture limit')
+     return config
+ 
+ 
+@@ -105,8 +115,8 @@
+                         'prompt':PROMPT_VERSION,'model':config.get('review_model') or 'HOST_DEFAULT_RECORDED_PER_RUN',
+                         'knowledge':'NO_AUTOMATIC_PROMOTION','calendar':inst.calendar_version,'universe':digest(config['products'])},
+             'retrieved_cases':[],'min_daily_bars':config.get('min_daily_bars',200),'max_daily_age_hours':48,
+-            'max_age_hours_by_timeframe':{'1D':48,'1W':240,'4H':8,'1H':2},'condition_timeframe':analysis_timeframe,'analysis_timeframe':analysis_timeframe,'context_timeframe':CONTEXT_FRAME[analysis_timeframe],
+-            'min_structure_bars':config.get('min_daily_bars' if analysis_timeframe=='1D' else 'min_4h_bars',200),'requires_volume':True,'scope':'NATIVE_RESEARCH_ONLY'}
++            'max_age_hours_by_timeframe':dict(FRESHNESS_HOURS),'condition_timeframe':analysis_timeframe,'analysis_timeframe':analysis_timeframe,'context_timeframe':CONTEXT_FRAME[analysis_timeframe],
++            'min_structure_bars':minimum_bars(config,analysis_timeframe),'requires_volume':True,'scope':'NATIVE_RESEARCH_ONLY'}
+         if interpretation.get('supply_alignment',{}).get('status')=='CONFLICTS' and set(interpretation['candidate_routes'])=={'STRUCTURE','SUPPLY_DEMAND'}:spec['data_route']='CONFLICT'
+         if inst.instrument_type=='CONTINUOUS_REFERENCE':spec['conditions']['entry']={'op':'manual','question':'连续合约仅作结构观察；核验实际交易月份后由人评估入场。'}
+     else:spec=deepcopy(original['spec'])
+@@ -232,7 +242,7 @@
+     statefile=workspace/'native_state.json'
+     last_state=next((e for e in reversed(store.events()) if e['kind']=='NATIVE_RUNTIME_STATE'),None)
+     state=store.read_snapshot(last_state['payload']['state_sha256']) if last_state else (json.loads(statefile.read_text()) if statefile.is_file() else {})
+-    results=[];request_batch=[];scans=[];planned=[];not_due=[];retry_wait=[]
++    results=[];request_batch=[];scans=[];planned=[];read_only_planned=[];not_due=[];retry_wait=[]
+     supply_memo={};frame_memo={};engine_memo={}
+     with desktop_lock(Path(tempfile.gettempdir())/('gmi-tv-'+str(os.getuid())+'-'+digest(config['cdp_endpoint'])[:16]+'.lock')):
+         for product in units:
+@@ -244,15 +254,15 @@
+             except (ValueError,OSError,KeyError,NativeError) as exc:supply_error=str(exc)
+             if product.get('supply_evidence_files') and not docs and not supply_error:supply_error='SUPPLY_EXPORT_EMPTY_OR_UNKNOWN'
+             supply_signature=digest({'documents':docs,'error':supply_error})
+-            analysis_signature=digest({'engine':getattr(engine,'code_hash',None),'engine_error':engine_error,
++            analysis_signature=digest({'qualification_code':qualification_code_signature(),'engine':getattr(engine,'code_hash',None),'engine_error':engine_error,
+                 'model':getattr(reviewer,'model',None) or config.get('review_model'),
+                 'prompt':PROMPT_VERSION,'reviewer_type':type(reviewer).__module__+'.'+type(reviewer).__qualname__,
+-                'adapter_code':digest({name:Path(__file__).with_name(name).read_text() for name in ('reviewer.py','semantics.py','compute_bridge.py','data.py','evidence_v11.py','book_rules_v11.py')}),'product':{k:v for k,v in product.items() if k!='drawing_viewport'},
+-                'min_4h_bars':config.get('min_4h_bars',200),'min_daily_bars':config.get('min_daily_bars',200),'min_weekly_bars':config.get('min_weekly_bars',100)})
++                'adapter_code':digest({name:Path(__file__).with_name(name).read_text() for name in ('reviewer.py','semantics.py','compute_bridge.py','data.py','evidence_v11.py','book_rules_v11.py','journal_v11.py')}),'product':{k:v for k,v in product.items() if k!='drawing_viewport'},
++                'min_4h_bars':config.get('min_4h_bars',200),'min_daily_bars':config.get('min_daily_bars',200),'min_weekly_bars':config.get('min_weekly_bars',100),'min_monthly_bars':config.get('min_monthly_bars',24),'min_12h_bars':config.get('min_12h_bars',200)})
+             delivery_signature=digest({'write_tv':config['write_tv'],'layout':product.get('layout_id'),
+                 'tolerance':product['price_tolerance'],'adapter':'TV_NATIVE_TV11_EVIDENCE_LAYOUT',
+                 'drawing_source':digest({name:Path(__file__).with_name(name).read_text()
+-                    for name in ('drawing.py','layout_v11.py','tradingview.py','tv_native.js')}),
++                    for name in ('drawing.py','layout_v11.py','tradingview.py','tv_native.js','viewport_v11.js')}),
+                 'drawing_viewport':product.get('drawing_viewport'),'observation_policy':config.get('observation_policy',DEFAULT_POLICY)})
+             configuration_changed=(old.get('analysis_signature')!=analysis_signature or old.get('delivery_signature')!=delivery_signature or old.get('supply_signature')!=supply_signature)
+ 
+@@ -270,10 +280,10 @@
+             cached=store.read_snapshot(old['datasets_sha256']) if old.get('datasets_sha256') else {}
+             checkpoints=deepcopy(old.get('capture_checkpoints',{}))
+             cap_signature=capture_signature(product,config)
+-            wanted=list(dict.fromkeys([primary_tf,context_tf,expected_tf]))
++            wanted=list(dict.fromkeys(tf for tf in [primary_tf,context_tf,expected_tf] if tf is not None))
+             due_frames={tf:frame_due(inst,tf,at,cached.get(tf),checkpoints.get(tf),
+                 signature_changed=old.get('product_capture_signature')!=cap_signature,
+-                revision_seconds=config.get('revision_check_seconds',DEFAULT_REVISION_SECONDS)[tf],
++                revision_seconds={**DEFAULT_REVISION_SECONDS,**config.get('revision_check_seconds',{})}[tf],
+                 force=tf in config.get('force_refresh_timeframes',[]),
+                 grace_seconds=product['profile'].get('publication_delay_seconds',60)) for tf in wanted}
+             deadline_due=bool(original and prior['level'] not in TERMINAL and timestamp(at)>=timestamp(prior.get('monitoring_deadline',original['spec']['deadline'])))
+@@ -327,13 +337,15 @@
+                     acquisition_counts[tf]='CAPTURED'
+                     frame_memo[memo_key]=ds
+                     return ds
+-                daily=acquire(primary_tf,config.get('min_daily_bars' if primary_tf=='1D' else 'min_4h_bars',200),750)
++                daily=acquire(primary_tf,minimum_bars(config,primary_tf),CAPTURE_DEPTHS[primary_tf])
+                 rawkey=data_key(daily)
+-                stage='CONTEXT_CAPTURE';weekly_error=checkpoints.get(context_tf,{}).get('failure_reason') if due_frames[context_tf][1]=='OPTIONAL_WEEKLY_UNAVAILABLE_RETRY_PENDING' else None

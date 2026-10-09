@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "spec_version": "1.1",
+  "revision": "r3",
+  "status": "CODE_CANDIDATE_CURRENT_MAC_INTEGRATION_AND_NATIVE_ACCEPTANCE_PENDING",
+  "installable": false,
+  "deployment_ready": false,
+  "production_modified": false,
+  "prior_remote_commit": "49734456a8529ce3a931915be7db0e91d5079ccb",
+  "source_files": 713,
+  "r3_incremental_changes": 33,
+  "cumulative_changes_from_historical": 44,
+  "application_tests": {
+    "run": 1148,
+    "passed": 1147,
+    "errors": 1,
+    "failures": 0,
+    "skipped": 0
+  },
+  "new_application_tests_included": 66,
+  "auxiliary_tests": {
+    "historical_candidate_builder": {
+      "passed": 8
+    },
+    "source_preflight": {
+      "passed": 12
+    },
+    "public_delta_builder": {
+      "passed": 14
+    }
+  },
+  "new_timeframes_implementation": "INTEGRATED_SYNTHETIC_TESTED",
+  "actual_engine_new_timeframes": "NOT_RUN",
+  "current_mac_source_merged": false,
+  "native_tv_visual_acceptance": "NOT_RUN",
+  "three_book_full_method_coverage": "NOT_COMPLETED",
+  "daily_schedule_enabled": false,
+  "vault_configured": false,
+  "codex_role": "PULL_PINNED_RELEASE_INSTALL_CONFIGURE_ACCEPTANCE_NO_DEVELOPMENT"
+}

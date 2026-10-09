@@ -1,0 +1,203 @@
++    key=store.snapshot(body)
++    if store.read_snapshot(key)!=body:raise NativeError('JOURNAL_FREEZE_READBACK_FAILED')
++    store.append('TV11_MAIN_RECORD','tv11-main:'+track_id,
++                 {'snapshot':key,'source_fingerprint':source_key,'track_id':track_id},at=at,
++                 idempotency_key='tv11-main:'+source_key,snapshot_sha256=key)
++    return body
++
++
++def main_context(store,*,track_id: str,as_of: str,limit: int=2) -> list[dict]:
++    """Filter event identity before snapshot retrieval; P&F/unknown classes never read."""
++    if type(limit) is not int or not 1<=limit<=5:raise ValueError('MAIN_CONTEXT_LIMIT')
++    selected=[e for e in _record_events(store,as_of) if e['kind']=='TV11_MAIN_RECORD'
++              and e['payload']['track_id']==track_id][-limit:]
++    result=[]
++    for event in selected:
++        body=store.read_snapshot(event['snapshot_sha256'])
++        if body.get('lineage_scope')!='MAIN_ONLY' or body.get('contains_sidecar_targets') is not False:
++            raise NativeError('MAIN_CONTEXT_LINEAGE_CONFLICT')
++        review=body['review']
++        result.append({'record_id':event['snapshot_sha256'],'recorded_at':body['recorded_at'],
++            'data_cutoff':body['data_cutoff'],'timeframe':body['timeframe'],
++            'summary':review['summary'],'phase':review['phase'],'support':review.get('support',[]),
++            'opposition':review.get('opposition',[]),'conditions':review.get('condition_trees',{}),
++            'source_fingerprint':body['source_fingerprint']})
++    return result
++
++
++def record_daily_check(store,invocation: dict,*,as_of: str,zone: str) -> dict:
++    """One content version per day/status, not one new forecast per polling tick."""
++    day=timestamp(as_of).astimezone(ZoneInfo(zone)).date().isoformat()
++    previous=_record_events(store,as_of);latest={}
++    for event in previous:
++        if event['kind']=='TV11_MAIN_RECORD':latest[event['payload']['track_id']]=event['snapshot_sha256']
++    products=[]
++    for item in invocation.get('products',[]):
++        products.append({k:deepcopy(item[k]) for k in
++            ('instrument_id','analysis_timeframe','status','tv_delivery','visual_acceptance','stage','error','tv_error')
++            if k in item})
++    intent={'version':VERSION,'day':day,'timezone':zone,'run_state':invocation.get('state','NOT_REPORTED'),
++            'research_refs':latest,'products':products,
++            'meaning':'RUNNER_CHECK_NOT_A_NEW_FORECAST_OR_VERIFIED_INTRABAR_OBSERVATION'}
++    identity=digest(intent)
++    for event in previous:
++        if event['kind']=='TV11_DAILY_CHECK' and event['payload']['identity']==identity:
++            return store.read_snapshot(event['snapshot_sha256'])
++    body={**intent,'record_type':'MAIN_DAILY_CHECK','lineage_scope':'MAIN_ONLY',
++          'contains_sidecar_targets':False,'recorded_at':as_of}
++    key=store.snapshot(body)
++    store.append('TV11_DAILY_CHECK','tv11-daily-check:'+zone+':'+day,
++        {'identity':identity,'snapshot':key},at=as_of,idempotency_key='tv11-daily-check:'+identity,snapshot_sha256=key)
++    return body
++
++
++def render_daily_check(body,key):
++    lines=[f"# 每日检查 · {body['day']}",f"实际记录：{body['recorded_at']}；时区：{body['timezone']}",
++        f"运行状态：{body['run_state']}。仅记录本次运行结果，不制造新的阶段判断或预测。",
++        '无新增研究时继续指向原判断；IDLE不等于已核验全部盘中变化，技术失败不等于市场观点失效。',
++        json.dumps(body['products'],ensure_ascii=False,indent=2),
++        '原判断索引：'+json.dumps(body['research_refs'],ensure_ascii=False),f"检查记录 `{key}`。"]
++    return '\n\n'.join(lines)+'\n'
++
++
++def periods(first: str,as_of: str,zone: str) -> list[dict]:
++    """Sunday draft of Mon–Sun week; final edition only after following Monday.
++
++    Calendar month [first, next first) is due on the following first day. Calendar
++    days, not fixed 24-hour multiples, handle DST/leap months. No future data used.
++    """
++    z=ZoneInfo(zone);start=timestamp(first).astimezone(z);now=timestamp(as_of).astimezone(z)
++    if now<start:return []
++    if (now.date()-start.date()).days>3660:raise NativeError('REVIEW_BACKLOG_REQUIRES_EXPLICIT_BATCH')
++    monday=start.date()-timedelta(days=start.weekday())
++    output=[]
++    while monday<=now.date():
++        op=datetime.combine(monday,datetime.min.time(),z);end=datetime.combine(monday+timedelta(days=7),datetime.min.time(),z)
++        due=datetime.combine(monday+timedelta(days=6),datetime.min.time(),z)
++        if now>=due:output.append({'kind':'WEEK','id':'week-'+monday.isoformat(),'start':op.isoformat(),
++            'end':end.isoformat(),'due':due.isoformat(),'period_closed':now>=end,'timezone':zone})
++        monday+=timedelta(days=7)
++    month=start.replace(day=1,hour=0,minute=0,second=0,microsecond=0)
++    while month<=now:
++        end=month.replace(year=month.year+1,month=1) if month.month==12 else month.replace(month=month.month+1)
++        if now>=end:output.append({'kind':'MONTH','id':f'month-{month:%Y-%m}','start':month.isoformat(),
++            'end':end.isoformat(),'due':end.isoformat(),'period_closed':True,'timezone':zone})
++        month=end
++    return sorted(output,key=lambda p:(p['due'],p['kind']))
++
++
++def create_calendar_reviews(store,*,as_of: str,zone: str) -> list[str]:
++    events=_record_events(store,as_of)
++    research=[e for e in events if e['kind']=='TV11_MAIN_RECORD']
++    if not research:return []
++    # Only outcome/status fields are copied, not arbitrary external documents,
++    # original sidecar targets, or free-form past review/model contexts.
++    assessments={}
++    for event in store.events():
++        if event['kind']=='ASSESSMENT' and timestamp(event['recorded_at'])<=timestamp(as_of):
++            # Keep the first and intermediate observations for period membership.
++            # Latest-only selection loses a September case when updated in October.
++            assessments.setdefault(event['subject'],[]).append(event)
++    created=[]
++    for period in periods(research[0]['recorded_at'],as_of,zone):
++        selected=[e for e in research if timestamp(period['start'])<=timestamp(e['recorded_at'])<timestamp(period['end'])]
++        if not selected:continue
++        refs=[e['snapshot_sha256'] for e in selected]
++        rows=[store.read_snapshot(key) for key in refs]
++        by_track={}
++        for key,row in zip(refs,rows):
++            if row['lineage_scope']!='MAIN_ONLY' or row['contains_sidecar_targets'] is not False:
++                raise NativeError('REVIEW_MAIN_LINEAGE_CONFLICT')
++            entry=by_track.setdefault(row['track_id'],{'first':key,'latest':key,'updates':0})
++            entry['latest']=key;entry['updates']+=1
++        tracks={(r['product_id'],r['timeframe']) for r in rows};outcomes=[]
++        period_start=timestamp(period['start']);period_end=timestamp(period['end'])
++        for history in assessments.values():
++            history=sorted(history,key=lambda e:e['sequence'])
++            first=history[0]
++            if timestamp(first['recorded_at'])>=period_end:continue
++            at_start=[e for e in history if timestamp(e['recorded_at'])<period_start]
++            # Cohort = started in the period or still pending on entry. Cases
++            # already settled before the period are not repeatedly counted.
++            if at_start and at_start[-1]['payload']['expected_event_outcome']!='PENDING':continue
++            last=history[-1];row=last['payload']
++            if (row['product_id'],row.get('analysis_timeframe','1D')) not in tracks:continue
++            if timestamp(row['as_of'])>timestamp(as_of):raise NativeError('REVIEW_FUTURE_ASSESSMENT')
++            outcome=row['expected_event_outcome']
++            if outcome=='PENDING' and timestamp(as_of)>=timestamp(row['deadline']):outcome='OVERDUE_UNEVALUATED'
++            outcomes.append({'episode_id':row['episode_id'],'hypothesis_id':row['hypothesis_id'],
++                'product_id':row['product_id'],'timeframe':row.get('analysis_timeframe','1D'),
++                'cohort_first_recorded_at':first['recorded_at'],'outcome_recorded_at':last['recorded_at'],
++                'is_primary':row.get('is_primary'),
++                'outcome':outcome,'deadline':row['deadline'],'assessed_at':row['as_of'],
++                'outcome_evidence_event':last['event_hash'],
++                'phase_accuracy':'NOT_INFERRED_FROM_DIRECTION_OR_MODEL_SELF_REVIEW'})
++        body={'schema_version':'gmi-tv11-calendar-review-v1','record_type':'MAIN_REVIEW',
++            'lineage_scope':'MAIN_ONLY','contains_sidecar_targets':False,'version':VERSION,
++            'period':period,'research_refs':refs,'tracks':by_track,'outcomes':outcomes,
++            'cutoff_basis':'RECORDED_INFORMATION_ONLY_NOT_FINAL_WEEK_CANDLE',
++            'cohort_policy':'STARTED_IN_PERIOD_OR_PENDING_AT_PERIOD_START',
++            'outcome_scope':'FOLLOWUP_AVAILABLE_AT_REVIEW_TIME_NOT_BACKDATED_INTO_PERIOD',
++            'missed_events':'INDEPENDENT_BENCHMARK_NOT_YET_AVAILABLE',
++            'probability':None,'trading_win_rate':None,'automatic_rule_changes':False}
++        key=store.snapshot(body)
++        if any(e['kind']=='TV11_CALENDAR_REVIEW' and e['snapshot_sha256']==key for e in events):continue
++        store.append('TV11_CALENDAR_REVIEW','tv11-review:'+zone+':'+period['id'],
++            {'snapshot':key,'period_id':period['id'],'period_closed':period['period_closed']},at=as_of,
++            idempotency_key='tv11-review:'+key,snapshot_sha256=key)
++        created.append(key)
++    return created
++
++
++def _texts(items):
++    return '；'.join(str(i).replace('\n',' ') for i in items) if items else '本次未记录；不是已证明不存在。'
++
++
++def render_record(body,key):
++    r=body['review'];basis=r.get('validated_book_basis',[])
++    comparisons=r.get('measured_wave_comparisons',[])
++    comp=[]
++    for c in comparisons:
++        a,b=c['reference'],c['current'];v=c['comparison']
++        comp.append(f"{c['id']}：{a['start_time']}—{a['end_time']} 对比 {b['start_time']}—{b['end_time']}；"+
++            '，'.join(f'{k}={v[k]}' for k in ('volume_ratio','progress_ratio','duration_ratio')))
++    return (f"# {body['product_id']} · {body['timeframe']} · 当时判断\n\n"
++        f"记录：{body['recorded_at']}　量价截止：{body['data_cutoff']}\n\n"
++        f"**结论**　{r['summary']}\n\n结构：{r.get('cycle','未分类')} / {r.get('phase','未分类')}。"+
++        f"是否存在机会：{r.get('candidate')}；不代表交易许可。\n\n"
++        f"**分析**　支持：{_texts(r.get('support',[]))}\n\n反证：{_texts(r.get('opposition',[]))}\n\n"
++        f"量价比较：{_texts(comp) if comp else r.get('comparison_gap','未提供可比较波段，不编数值。')}\n\n"
++        f"**条件与应对**\n\n```json\n{json.dumps(r.get('condition_trees',{}),ensure_ascii=False,indent=2)}\n```\n\n"
++        f"**依据与记录**　方法覆盖：{body['method_coverage']}；数值概率未校准，不输出百分比。\n\n"
++        f"书籍依据：{json.dumps(basis,ensure_ascii=False)}\n\n"
++        f"研究记录 `{key}`；原始量价 `{body['dataset_sha256']}`。TV在冻结时尚未交付，"+
++        "实际绘图结果以单独回执为准；原判断不因后续行情被覆盖。\n")
++
++
++def render_review(body,key,store):
++    period=body['period'];lines=[f"# {'周' if period['kind']=='WEEK' else '月'}复盘 · {period['id']}",
++        f"\n范围：{period['start']} 至 {period['end']}（末端不含）；"+
++        ('期间已结束。' if period['period_closed'] else '周日阶段版，周内数据尚未全部结束。'),
++        '\n**结论**　以下逐项对照当时判断，不把后来走势替换成原判断。']
++    for track,item in body['tracks'].items():
++        first=store.read_snapshot(item['first']);last=store.read_snapshot(item['latest'])
++        lines.extend([f"\n**{first['product_id']} / {first['timeframe']}**",
++            f"当时（{first['recorded_at']}）：{first['review']['summary']}",
++            f"该期最新记录（{last['recorded_at']}）：{last['review']['summary']}",
++            f"最新反证：{_texts(last['review'].get('opposition',[]))}",
++            f"记录：`{item['first']}` → `{item['latest']}`；{item['updates']}次更新，不算独立交易样本。"])
++    lines.extend(['\n**结果与缺口**',json.dumps(body['outcomes'],ensure_ascii=False,indent=2),
++        '无新行情不能把到期未知判成失败；到期但未取得完整结果的案例保留 OVERDUE_UNEVALUATED。',
++        '漏报、延迟及阶段正确率需要独立案例标准；本模块不通过模型自评补造。',
++        '结果属于该期案例的后续跟踪，结果记录时间单独保留；不把期后信息冒充期内已知。',
++        f"\n**建议**　规则修改仅进入待验证提案，不自动改书籍原则或正式策略。记录 `{key}`。"])
++    return '\n\n'.join(lines)+'\n'
++
++
++def _safe_path(root: Path,relative: str) -> Path:
++    p=PurePosixPath(relative)
++    if p.is_absolute() or '..' in p.parts or '\\' in relative:raise NativeError('VAULT_PATH_ESCAPE')
++    result=root
++    for part in p.parts:
++        result=result/part
++        if result.is_symlink():raise NativeError('VAULT_INTERNAL_SYMLINK_REJECTED')

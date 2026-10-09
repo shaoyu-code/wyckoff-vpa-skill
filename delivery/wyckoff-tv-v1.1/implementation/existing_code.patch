@@ -1,0 +1,690 @@
+--- a/schemas/native_price_reviewer.schema.json
++++ b/schemas/native_price_reviewer.schema.json
+@@ -538,6 +538,141 @@
+         "1D",
+         "4H"
+       ]
++    },
++    "wave_comparisons": {
++      "type": "array",
++      "maxItems": 3,
++      "items": {
++        "type": "object",
++        "properties": {
++          "id": {
++            "type": "string"
++          },
++          "reference": {
++            "type": "object",
++            "properties": {
++              "start_index": {
++                "type": "integer"
++              },
++              "end_index": {
++                "type": "integer"
++              },
++              "start_price_field": {
++                "type": "string",
++                "enum": [
++                  "open",
++                  "high",
++                  "low",
++                  "close"
++                ]
++              },
++              "end_price_field": {
++                "type": "string",
++                "enum": [
++                  "open",
++                  "high",
++                  "low",
++                  "close"
++                ]
++              },
++              "ongoing": {
++                "type": "boolean"
++              }
++            },
++            "required": [
++              "start_index",
++              "end_index",
++              "start_price_field",
++              "end_price_field",
++              "ongoing"
++            ],
++            "additionalProperties": false
++          },
++          "current": {
++            "type": "object",
++            "properties": {
++              "start_index": {
++                "type": "integer"
++              },
++              "end_index": {
++                "type": "integer"
++              },
++              "start_price_field": {
++                "type": "string",
++                "enum": [
++                  "open",
++                  "high",
++                  "low",
++                  "close"
++                ]
++              },
++              "end_price_field": {
++                "type": "string",
++                "enum": [
++                  "open",
++                  "high",
++                  "low",
++                  "close"
++                ]
++              },
++              "ongoing": {
++                "type": "boolean"
++              }
++            },
++            "required": [
++              "start_index",
++              "end_index",
++              "start_price_field",
++              "end_price_field",
++              "ongoing"
++            ],
++            "additionalProperties": false
++          },
++          "basis": {
++            "type": "string"
++          }
++        },
++        "required": [
++          "id",
++          "reference",
++          "current",
++          "basis"
++        ],
++        "additionalProperties": false
++      }
++    },
++    "comparison_gap": {
++      "type": "string"
++    },
++    "book_basis": {
++      "type": "array",
++      "items": {
++        "type": "object",
++        "properties": {
++          "rule_id": {
++            "type": "string"
++          },
++          "bar_indices": {
++            "type": "array",
++            "items": {
++              "type": "integer"
++            }
++          },
++          "application": {
++            "type": "string"
++          },
++          "counterevidence": {
++            "type": "string"
++          }
++        },
++        "required": [
++          "rule_id",
++          "bar_indices",
++          "application",
++          "counterevidence"
++        ],
++        "additionalProperties": false
++      }
+     },
+     "supply_alignment": {
+       "type": "object",
+--- a/schemas/native_reviewer.schema.json
++++ b/schemas/native_reviewer.schema.json
+@@ -538,6 +538,141 @@
+         "1D",
+         "4H"
+       ]
++    },
++    "wave_comparisons": {
++      "type": "array",
++      "maxItems": 3,
++      "items": {
++        "type": "object",
++        "properties": {
++          "id": {
++            "type": "string"
++          },
++          "reference": {
++            "type": "object",
++            "properties": {
++              "start_index": {
++                "type": "integer"
++              },
++              "end_index": {
++                "type": "integer"
++              },
++              "start_price_field": {
++                "type": "string",
++                "enum": [
++                  "open",
++                  "high",
++                  "low",
++                  "close"
++                ]
++              },
++              "end_price_field": {
++                "type": "string",
++                "enum": [
++                  "open",
++                  "high",
++                  "low",
++                  "close"
++                ]
++              },
++              "ongoing": {
++                "type": "boolean"
++              }
++            },
++            "required": [
++              "start_index",
++              "end_index",
++              "start_price_field",
++              "end_price_field",
++              "ongoing"
++            ],
++            "additionalProperties": false
++          },
++          "current": {
++            "type": "object",
++            "properties": {
++              "start_index": {
++                "type": "integer"
++              },
++              "end_index": {
++                "type": "integer"
++              },
++              "start_price_field": {
++                "type": "string",
++                "enum": [
++                  "open",
++                  "high",
++                  "low",
++                  "close"
++                ]
++              },
++              "end_price_field": {
++                "type": "string",
++                "enum": [
++                  "open",
++                  "high",
++                  "low",
++                  "close"
++                ]
++              },
++              "ongoing": {
++                "type": "boolean"
++              }
++            },
++            "required": [
++              "start_index",
++              "end_index",
++              "start_price_field",
++              "end_price_field",
++              "ongoing"
++            ],
++            "additionalProperties": false
++          },
++          "basis": {
++            "type": "string"
++          }
++        },
++        "required": [
++          "id",
++          "reference",
++          "current",
++          "basis"
++        ],
++        "additionalProperties": false
++      }
++    },
++    "comparison_gap": {
++      "type": "string"
++    },
++    "book_basis": {
++      "type": "array",
++      "items": {
++        "type": "object",
++        "properties": {
++          "rule_id": {
++            "type": "string"
++          },
++          "bar_indices": {
++            "type": "array",
++            "items": {
++              "type": "integer"
++            }
++          },
++          "application": {
++            "type": "string"
++          },
++          "counterevidence": {
++            "type": "string"
++          }
++        },
++        "required": [
++          "rule_id",
++          "bar_indices",
++          "application",
++          "counterevidence"
++        ],
++        "additionalProperties": false
++      }
+     }
+   },
+   "required": [
+--- a/src/global_market_intelligence/opportunities/native/drawing.py
++++ b/src/global_market_intelligence/opportunities/native/drawing.py
+@@ -5,18 +5,19 @@
+ from .tradingview import NativeError
+ 
+ 
++from .layout_v11 import visibility, validate_visibility, arrange_labels
++
+ def interval_visibility(tf: str):
+-    if tf not in {'1D','4H'}:raise NativeError('UNSUPPORTED_STRUCTURE_DRAWING_TIMEFRAME')
+-    return {'seconds':False,'minutes':False,'hours':tf=='4H','hoursFrom':4,'hoursTo':4,
+-            'days':tf=='1D','daysFrom':1,'daysTo':1,'weeks':False,'months':False,
+-            'ticks':False,'ranges':False}
++    if tf not in {'1D','4H'}:
++        raise NativeError('UNSUPPORTED_STRUCTURE_DRAWING_TIMEFRAME')
++    return visibility(tf)
+ 
+ 
+ def marker(product_id: str,key: str):return '[GMI:'+digest([product_id,key])[:24]+']'
+ 
+ 
+ def make_manifest(dataset: dict,review: dict, *, symbol: str,layout_id: str,episode_id: str,
+-                  price_tolerance: float, conditions: dict | None=None, level: str='OBSERVE', data_health: str='OK'):
++                  price_tolerance: float, conditions: dict | None=None, level: str='OBSERVE', data_health: str='OK', viewport: dict | None=None):
+     tf=dataset['timeframe']
+     if review.get('analysis_timeframe',tf)!=tf:raise NativeError('DRAWING_REVIEW_TIMEFRAME_MISMATCH')
+     bars=dataset['bars'];by_time={b['opened_at']:i for i,b in enumerate(bars)};native=dataset['native_by_open'];product=dataset['instrument']['product_id'];items=[]
+@@ -24,7 +25,9 @@
+     def add(key,shape,points,label,color):
+         tag=marker(product,episode_id+':'+dataset['timeframe']+':'+key)
+         items.append({'marker':tag,'shape':shape,'points':points,'text':'['+tf+'] '+label+'\n'+tag,
+-                      'overrides':{'color':color,'linecolor':color,'linewidth':1,'fontsize':12,'backgroundColor':color,'transparency':92,'intervalsVisibilities':interval_visibility(tf)}})
++                      'display_priority':0 if key=='status' or key.startswith('invalidate:') else 1,
++                      'display_role':'CURRENT_STATUS' if key=='status' else ('EVENT' if key.startswith('event:') else 'STRUCTURE'),
++                      'overrides':{'color':color,'linecolor':color,'linewidth':1,'fontsize':14,'backgroundColor':color,'transparency':92,'intervalsVisibilities':interval_visibility(tf)}})
+     down=review['cycle'] in {'DISTRIBUTION','REDISTRIBUTION'}
+     color='#A84036' if down else '#22724F'
+     for seg in review['phase_segments']:
+@@ -43,7 +46,7 @@
+         b=bars[e['bar_index']];index=e['bar_index'];high=e['kind'] in {'BC','UT','UTAD','SOW','LPSY'}
+         price=b['high'] if high else b['low']
+         proof=review.get('event_validation',{}).get(e['id'],{})
+-        suffix=(' · 历史已复核／后续失效' if proof.get('later_invalidation_index') is not None else ' · 已复核事件') if e['disposition']=='REVIEWED' else ' ? · 候选'
++        suffix=(' · 已复核/后续失效' if proof.get('later_invalidation_index') is not None else ' · 已复核') if e['disposition']=='REVIEWED' else ' ?'
+         add('event:'+e['kind']+':'+b['opened_at'],'text',[point(index,price)],e['kind']+suffix+'\nV='+str(b['volume']),
+             color if e['disposition']=='REVIEWED' else '#987119')
+     for line in review.get('line_anchors',[]):
+@@ -73,6 +76,17 @@
+                 if c['indicator'] in {'close','high','low'} and c['timeframe']==tf:
+                     add(name+':'+str(i),'horizontal_ray',[point(len(bars)-1,c['value'])],text+' · '+c['indicator']+' '+c['operator']+' '+str(c['value']),
+                         '#A84036' if name=='invalidate' else '#22724F')
++    def fmt(value):return '不可比' if value is None else format(value,'.3g')
++    for number,cmp in enumerate(review.get('measured_wave_comparisons',[])[:1],1):
++        a,b=cmp['reference'],cmp['current'];r=cmp['comparison']
++        for role,span in [('前',a),('本',b)]:
++            add('wave:'+cmp['id']+':'+role,'trend_line',
++                [point(span['start_index'],span['start_price']),point(span['end_index'],span['end_price'])],
++                '波'+str(number)+role+(' · 暂定' if span['ongoing'] else ' · 选段'), '#69727A')
++        label=('波'+str(number)+'本/前：量×'+fmt(r['volume_ratio'])+' 净进展×'+fmt(r['progress_ratio'])+
++               '\n时×'+fmt(r['duration_ratio'])+' 量速×'+fmt(r['volume_rate_ratio'])+
++               (' · 未完成' if a['ongoing'] or b['ongoing'] else ''))
++        add('wave-summary:'+cmp['id'],'text',[point(b['end_index'],b['end_price'])],label,'#505A66')
+     # Always leave a visible dated status, including unclassified and terminal states.
+     add('status','text',[point(len(bars)-1,bars[-1]['high'])],
+         'GMI '+level+' · '+review['cycle']+' · 数据 '+data_health+'\n量价截至 '+bars[-1]['closed_at'], '#505A66')
+@@ -82,7 +96,16 @@
+         'items':items,'data_health':data_health,'level':level,'data_cutoff':bars[-1]['closed_at'],'review_evidence_sha256':review['evidence_sha256'],
+         'annotation_scope':'EVIDENCED_PARTIAL_OR_FULL_SEGMENTS_NOT_FORCED_A_E',
+         'available_history':{'first':bars[0]['opened_at'],'last':bars[-1]['closed_at'],'bars':len(bars)},
++        'method_coverage':review.get('method_coverage','LEGACY_NOT_THREE_BOOK_VERIFIED'),
++        'book_basis':review.get('validated_book_basis',[]),
++        'measured_wave_comparisons':review.get('measured_wave_comparisons',[]),
++        'decisive_counterevidence':review.get('opposition',[]),
++        'visual_acceptance':'NOT_RUN_NATIVE_VISUAL_CHECK_REQUIRED',
+         'range_window_bars':(region or {}).get('lookback_bars')}
++    if review.get('opposition'):
++        add('opposition','text',[point(len(bars)-1,bars[-1]['low'])],
++            '反证：'+review['opposition'][0], '#A84036')
++    if viewport is not None:result=arrange_labels(result,viewport)
+     validate_manifest(result);return result
+ 
+ 
+@@ -92,6 +115,7 @@
+     if len(value['items'])>220:raise NativeError('DRAWING_LIMIT')
+     markers=set()
+     for item in value['items']:
++        validate_visibility(item,value['timeframe'])
+         if item['marker'] in markers or not item['marker'].startswith('[GMI:') or item['marker'] not in item['text']:raise NativeError('DRAWING_OWNER_INVALID')
+         markers.add(item['marker'])
+         if item['shape'] not in {'text','rectangle','horizontal_ray','trend_line'} or len(item['points'])!=(2 if item['shape'] in {'rectangle','trend_line'} else 1):raise NativeError('DRAWING_GEOMETRY_INVALID')
+--- a/src/global_market_intelligence/opportunities/native/engine.py
++++ b/src/global_market_intelligence/opportunities/native/engine.py
+@@ -22,20 +22,57 @@
+     return found[0]
+ 
+ 
++MAX_PROCESS_OUTPUT = 20_000_000
++
++
+ def run_process(argv: list[str], *, cwd: Path, timeout: float, input_text: str | None=None):
+-    # No shell interpolation and no permission escalation; a process group is
+-    # terminated on timeout so a child cannot continue writing after a retry.
++    """Bounded execution without inherited-output-pipe EOF deadlocks.
++
++    Input and output use private temporary files. Only the process group created
++    here is signalled. A detached external process is not assumed to be controllable.
++    """
+     import signal
+-    p=subprocess.Popen(argv,cwd=cwd,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+-                       text=True,start_new_session=True)
+-    try:out,err=p.communicate(input=input_text,timeout=timeout)
+-    except subprocess.TimeoutExpired:
+-        os.killpg(p.pid,signal.SIGTERM)
+-        try:out,err=p.communicate(timeout=3)
+-        except subprocess.TimeoutExpired:os.killpg(p.pid,signal.SIGKILL);out,err=p.communicate()
+-        raise NativeError('SUBPROCESS_TIMEOUT:'+Path(argv[0]).name)
+-    if len(out)+len(err)>20_000_000:raise NativeError('SUBPROCESS_OUTPUT_LIMIT')
+-    return {'returncode':p.returncode,'stdout':out,'stderr':err}
++    import tempfile
++    import time
++    import math
++    if type(timeout) not in (int,float) or not math.isfinite(timeout) or timeout <= 0:
++        raise NativeError('SUBPROCESS_TIMEOUT_MUST_BE_POSITIVE')
++    if not argv or any(not isinstance(x,str) for x in argv):
++        raise NativeError('SUBPROCESS_ARGV_REQUIRED')
++    if input_text is not None and len(input_text.encode('utf-8')) > MAX_PROCESS_OUTPUT:
++        raise NativeError('SUBPROCESS_INPUT_LIMIT')
++    def stop_group(process):
++        try: os.killpg(process.pid,signal.SIGTERM)
++        except ProcessLookupError: pass
++        try: process.wait(timeout=.5)
++        except subprocess.TimeoutExpired:
++            try: os.killpg(process.pid,signal.SIGKILL)
++            except ProcessLookupError: pass
++            try: process.wait(timeout=.5)
++            except subprocess.TimeoutExpired: pass
++    with tempfile.TemporaryFile() as src, tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
++        if input_text is not None:
++            src.write(input_text.encode('utf-8'));src.seek(0)
++        process=subprocess.Popen(argv,cwd=cwd,stdin=src,stdout=out,stderr=err,start_new_session=True)
++        deadline=time.monotonic()+timeout
++        try:
++            while process.poll() is None:
++                if os.fstat(out.fileno()).st_size+os.fstat(err.fileno()).st_size>MAX_PROCESS_OUTPUT:
++                    raise NativeError('SUBPROCESS_OUTPUT_LIMIT')
++                if time.monotonic()>=deadline:
++                    raise NativeError('SUBPROCESS_TIMEOUT:'+Path(argv[0]).name)
++                time.sleep(min(.02,max(0,deadline-time.monotonic())))
++            if os.fstat(out.fileno()).st_size+os.fstat(err.fileno()).st_size>MAX_PROCESS_OUTPUT:
++                raise NativeError('SUBPROCESS_OUTPUT_LIMIT')
++            out.seek(0);err.seek(0)
++            stdout=out.read(MAX_PROCESS_OUTPUT+1);stderr=err.read(MAX_PROCESS_OUTPUT+1)
++            if len(stdout)+len(stderr)>MAX_PROCESS_OUTPUT:
++                raise NativeError('SUBPROCESS_OUTPUT_LIMIT')
++            return {'returncode':process.returncode,
++                    'stdout':stdout.decode('utf-8',errors='replace'),
++                    'stderr':stderr.decode('utf-8',errors='replace')}
++        finally:
++            stop_group(process)
+ 
+ 
+ class WyckoffEngine:
+--- a/src/global_market_intelligence/opportunities/native/pipeline.py
++++ b/src/global_market_intelligence/opportunities/native/pipeline.py
+@@ -247,10 +247,13 @@
+             analysis_signature=digest({'engine':getattr(engine,'code_hash',None),'engine_error':engine_error,
+                 'model':getattr(reviewer,'model',None) or config.get('review_model'),
+                 'prompt':PROMPT_VERSION,'reviewer_type':type(reviewer).__module__+'.'+type(reviewer).__qualname__,
+-                'adapter_code':digest({name:Path(__file__).with_name(name).read_text() for name in ('reviewer.py','semantics.py','compute_bridge.py','data.py')}),'product':product,
++                'adapter_code':digest({name:Path(__file__).with_name(name).read_text() for name in ('reviewer.py','semantics.py','compute_bridge.py','data.py','evidence_v11.py','book_rules_v11.py')}),'product':{k:v for k,v in product.items() if k!='drawing_viewport'},
+                 'min_4h_bars':config.get('min_4h_bars',200),'min_daily_bars':config.get('min_daily_bars',200),'min_weekly_bars':config.get('min_weekly_bars',100)})
+             delivery_signature=digest({'write_tv':config['write_tv'],'layout':product.get('layout_id'),
+-                'tolerance':product['price_tolerance'],'adapter':'TV_NATIVE_V6_SCOPED_LINES_VISIBILITY','observation_policy':config.get('observation_policy',DEFAULT_POLICY)})
++                'tolerance':product['price_tolerance'],'adapter':'TV_NATIVE_TV11_EVIDENCE_LAYOUT',
++                'drawing_source':digest({name:Path(__file__).with_name(name).read_text()
++                    for name in ('drawing.py','layout_v11.py','tradingview.py','tv_native.js')}),
++                'drawing_viewport':product.get('drawing_viewport'),'observation_policy':config.get('observation_policy',DEFAULT_POLICY)})
+             configuration_changed=(old.get('analysis_signature')!=analysis_signature or old.get('delivery_signature')!=delivery_signature or old.get('supply_signature')!=supply_signature)
+ 
+             if old.get('retry_after') and timestamp(at)<timestamp(old['retry_after']) and not configuration_changed:
+@@ -471,10 +474,14 @@
+             tv=None
+             try:
+                 manifest=make_manifest(daily,interpretation,symbol=product['symbol'],layout_id=product['layout_id'],
+-                    episode_id=row['episode_id'],price_tolerance=product['price_tolerance'],conditions={**req['spec']['conditions'],**row.get('monitoring_plan',{}).get('conditions',{})} if row.get('monitoring_plan') else req['spec']['conditions'],level=row['level'],data_health=row['data_health'])
++                    episode_id=row['episode_id'],price_tolerance=product['price_tolerance'],conditions={**req['spec']['conditions'],**row.get('monitoring_plan',{}).get('conditions',{})} if row.get('monitoring_plan') else req['spec']['conditions'],level=row['level'],data_health=row['data_health'],viewport=product.get('drawing_viewport'))
++                from .evidence_v11 import freeze_research
++                manifest=freeze_research(store,daily,interpretation,manifest,at=clock())
+                 tv=tv_factory(product);tv.connect()
+                 delivery=tv.deliver(manifest,store=store,at=clock(),evidence_dir=run/'tv')
+                 status['tv_delivery']=delivery['status']
++                status['visual_acceptance']=delivery.get('visual_acceptance','NOT_REPORTED')
++                status['v11_complete']=delivery.get('v11_complete',False)
+             except Exception as e:
+                 status.update(tv_delivery='RECONCILE_REQUIRED',tv_error=str(e))
+                 n=state.get(tid,{}).get('failure_count',0)+1
+@@ -505,6 +512,10 @@
+         'engine_integration':'NATIVE_EXECUTED' if any(r['status']=='SCANNED' for r in results) else 'NO_SUCCESSFUL_SCAN','tv_delivery':'PER_PRODUCT','monitoring_activation':'RUN_ONCE',
+         'notifications_sent':notices['desktop_sent'],'notices':notices,'explanation':'本机真实数据/引擎/绘图按产品分别记录；未出现机会与失败分别统计。'}
+     if config.get('notify_desktop') and (notices['failed'] or notices['uncertain']):final['state']='PARTIAL'
++    final['v11_complete']=False
++    final['v11_scope']='CODE_CANDIDATE_REQUIRES_METHOD_COVERAGE_AND_NATIVE_VISUAL_ACCEPTANCE'
++    if config.get('write_tv') and any(r.get('visual_acceptance','').startswith('NOT_RUN') for r in results):
++        final['state']='PARTIAL'
+     append(store,'NATIVE_RUN','native:run',final,final['as_of']);write_json(workspace/'last_invocation.json',final)
+     write_json(workspace/'opportunity_panel.json',view(workspace,as_of=final['as_of']))
+     checkpoint_review(store,workspace,final['as_of'],config)
+--- a/src/global_market_intelligence/opportunities/native/reviewer.py
++++ b/src/global_market_intelligence/opportunities/native/reviewer.py
+@@ -11,7 +11,9 @@
+ from .engine import run_process
+ from .tradingview import NativeError
+ 
+-PROMPT_VERSION='gmi-native-wyckoff-review-v6-independent-timeframes'
++PROMPT_VERSION='gmi-native-wyckoff-review-tv11-evidence-1'
++from .evidence_v11 import audit_window, reviewed_comparisons, instant
++from .book_rules_v11 import packet_rules, validate_rule_bindings
+ from ..timeframes import CONTEXT_FRAME
+ from .semantics import event_proof, validate_phase_geometry, validate_entry_clauses
+ EVENTS={'PS','SC','AR','ST','BC','UT','UTAD','SPRING','TEST_AFTER_SPRING','TEST_AFTER_UT','SOS','SOW','LPS','LPSY','EFFORT_NO_RESULT','CLIMAX'}
+@@ -42,6 +44,16 @@
+ SCHEMA['properties']['analysis_timeframe']={'type':'string','enum':['1D','4H']}
+ 
+ 
++SPAN=obj({'start_index':I,'end_index':I,
++          'start_price_field':{'type':'string','enum':['open','high','low','close']},
++          'end_price_field':{'type':'string','enum':['open','high','low','close']},
++          'ongoing':{'type':'boolean'}})
++SCHEMA['properties']['wave_comparisons']={'type':'array','maxItems':3,'items':
++    obj({'id':S,'reference':SPAN,'current':SPAN,'basis':S})}
++SCHEMA['properties']['comparison_gap']=S
++SCHEMA['properties']['book_basis']=arr(obj({'rule_id':S,'bar_indices':arr(I),'application':S,'counterevidence':S}))
++
++
+ # Keep the old schema callable for imported historical review fixtures only.
+ # The live pipeline uses PRICE_SCHEMA and forbids a second supply-selection vote.
+ from copy import deepcopy
+@@ -69,17 +81,31 @@
+ '''
+ 
+ 
++PROMPT += '''
++附加的book_rules为三本书并列的已核验起始依据，不代表全书覆盖。
++每项重要结论用book_basis给出实际适用的rule_id、bar_indices、适用解释和反证；不需要凑齐三本投票。
++wave_comparisons选择最多三组有意义的比较段，给出真实bar_index与端点字段；数值由程序计算，不自行编写量比。
++没有可比较波段时wave_comparisons为空并在comparison_gap说明原因；进行中的波标ongoing=true，不把其较小总量说成最终缩量。
++注意区间内SOS、由整段上涨构成的SOS、多日SC和放量Spring；未出现在旧引擎候选中的行为仍可作为有据观察候选，不假装完成确认。
++停止不等于反转，需求弱不等于新增供应。book_basis的引用只证明方法来源，不能当作市场判断准确的自我认证。
++'''
++
++
+ def compact_packet(daily: dict, weekly: dict | None, daily_engine: dict, weekly_engine: dict | None, *, original_spec=None, fundamentals=None, fundamental_summary=None):
+     def compact(dataset,engine):
+         if dataset is None or engine is None:return None
+-        bars=dataset['bars'];ev=engine['candidate'].get('events',[])
+-        indices=set(range(max(0,len(bars)-160),len(bars)))
+-        for e in ev:
+-            i=e['bar_index'];indices.update(range(max(0,i-2),min(len(bars),i+14)))
+-        for i in (0,len(bars)-1):indices.add(i)
+-        candles=[{'bar_index':i,'time':bars[i]['opened_at'],**{k:bars[i][k] for k in ('open','high','low','close','volume')}} for i in sorted(indices)]
++        audit=audit_window(dataset)
++        bars=dataset['bars']
++        if len(bars)>2000:raise NativeError('REVIEW_WINDOW_REQUIRES_EXPLICIT_SCOPE_REDUCTION')
++        # Full selected window, including middle bars and all adverse evidence.
++        # Do not silently discard 160+ bar history based on detector nominations.
++        candles=[{'bar_index':i,'time':b['opened_at'],'closed_at':b['closed_at'],
++                  'available_at':max([instant(b['closed_at'])]+[instant(b[k]) for k in ('available_at','published_at','observed_at') if b.get(k)]).isoformat(),
++                  **{k:b[k] for k in ('open','high','low','close','volume')}} for i,b in enumerate(bars)]
+         return {'instrument':dataset['instrument'],'timeframe':dataset['timeframe'],'bar_count':len(bars),
+-            'bars':candles,'candidates':engine['candidate'],'engine_version':engine['version'],'engine_code_sha256':engine['code_sha256']}
++            'bars':candles,'window_audit':audit,
++            'measurement_cutoff':dataset.get('qualification_as_of') or dataset['captured_at'],
++            'candidates':engine['candidate'],'engine_version':engine['version'],'engine_code_sha256':engine['code_sha256']}
+     primary_tf=daily['timeframe']
+     if primary_tf not in CONTEXT_FRAME:raise NativeError('UNSUPPORTED_STRUCTURE_TIMEFRAME')
+     context_tf=CONTEXT_FRAME[primary_tf]
+@@ -88,7 +114,8 @@
+     roles={'daily':compact(daily,daily_engine),'weekly':compact(weekly,weekly_engine)} if primary_tf=='1D' else {
+         'primary':compact(daily,daily_engine),'background':compact(weekly,weekly_engine)}
+     packet={**roles,'primary_timeframe':primary_tf,'context_timeframe':context_tf,
+-            'original_spec':original_spec,'fundamentals':fundamentals or [],'prompt_version':PROMPT_VERSION}
++            'original_spec':original_spec,'fundamentals':fundamentals or [],'prompt_version':PROMPT_VERSION,
++            'book_rules':packet_rules()}
+     if fundamental_summary is not None:
+         packet.update(review_scope='PRICE_STRUCTURE_ONLY',fundamentals=[],fundamental_summary=fundamental_summary)
+     return packet
+@@ -204,7 +231,17 @@
+         a,b=bars[start['bar_index']],bars[end['bar_index']]
+         line_anchors.append({**line,'timeframe':primary_tf,'start_time':a['time'],'end_time':b['time'],
+                              'start_price':a[line['start_price_field']],'end_price':b[line['end_price_field']]})
+-    return {**value,'analysis_timeframe':primary_tf,'context_timeframe':CONTEXT_FRAME[primary_tf],
++    bindings=validate_rule_bindings(value.get('book_basis',[]),daily['bars'])
++    measured=[]
++    if value.get('wave_comparisons'):
++        ordered=sorted(daily['bars'],key=lambda b:b['bar_index'])
++        if [b['bar_index'] for b in ordered]!=list(range(daily['bar_count'])):
++            raise NativeError('WAVE_REQUIRES_COMPLETE_REVIEW_WINDOW')
++        ds={'bars':[{**b,'opened_at':b['time']} for b in ordered],
++            'captured_at':daily['measurement_cutoff']}
++        measured=reviewed_comparisons(value,ds)
++    return {**value,'measured_wave_comparisons':measured,'validated_book_basis':bindings,
++            'method_coverage':'INITIAL_VERIFIED_CARDS_NOT_FULL_BOOKS','analysis_timeframe':primary_tf,'context_timeframe':CONTEXT_FRAME[primary_tf],
+             'line_anchors':line_anchors,
+             'range_anchor':({'start_time':bars[daily['bar_count']-cand['structure_hint']['lookback_bars']]['time'],'end_time':bars[daily['bar_count']-1]['time'],
+                 'low':cand['structure_hint']['range_low'],'high':cand['structure_hint']['range_high'],'timeframe':primary_tf,
+@@ -226,7 +263,7 @@
+         root.mkdir(parents=True,exist_ok=True)
+         schema=root/'review.schema.json';schema.write_text(json.dumps(schema_value),encoding='utf-8')
+         prompt=prompt_text+'\nFROZEN_EVIDENCE_JSON:\n'+json.dumps(packet,ensure_ascii=False,allow_nan=False)
+-        if len(prompt)>180_000:raise NativeError('BOUNDED_REVIEW_CONTEXT_EXCEEDED')
++        if len(prompt)>480_000:raise NativeError('BOUNDED_REVIEW_CONTEXT_EXCEEDED')
+         (root/'review.prompt.txt').write_text(prompt,encoding='utf-8')
+         out=root/'review.result.json'
+         # Dedicated empty working directory prevents loading this product's
+@@ -257,6 +294,10 @@
+         for condition in schema['properties']['conditions']['properties'].values():
+             condition['properties']['clauses']['items']['properties']['timeframe']['enum']=[tf]
+         value,execution=self._execute(packet,root,schema,PROMPT)
++        frame=packet.get('primary') or packet.get('daily')
++        validate_rule_bindings(value.get('book_basis',[]),frame['bars'],required=True)
++        if not value.get('wave_comparisons') and not value.get('comparison_gap'):
++            raise NativeError('WAVE_COMPARISON_OR_EXPLAINED_GAP_REQUIRED')
+         verified=validate_review(value,packet);verified['review_execution']=execution
+         return verified
+ 
+--- a/src/global_market_intelligence/opportunities/native/tradingview.py
++++ b/src/global_market_intelligence/opportunities/native/tradingview.py
+@@ -249,6 +249,8 @@
+         from .drawing import validate_manifest
+         started=self.clock()
+         validate_manifest(manifest)
++        from .evidence_v11 import verify_frozen_manifest
++        verify_frozen_manifest(store,manifest)
+         if manifest['layout_id']!=self.layout_id:raise NativeError('MANIFEST_LAYOUT_MISMATCH')
+         self.select(manifest['symbol'],manifest['timeframe'])
+         subject='native-tv:'+manifest['product_id']+':'+manifest['timeframe']
+@@ -305,6 +307,10 @@
+                 retired['text']='已撤销 · 历史标注，不再代表当前判断\n'+retired['text']
+                 retired['overrides']={**retired.get('overrides',{}),'color':'#777777','linecolor':'#777777'}
+                 retired['retired']=True
++                from .layout_v11 import visibility
++                retired['overrides']['intervalsVisibilities']=visibility(None)
++            from .layout_v11 import visibility
++            retired['overrides']['intervalsVisibilities']=visibility(None)
+             retire.append((found[0],retired))
+         # Chart history is bounded; the append-only archive retains every version.
+         limit=min(20,220-len(manifest['items']))
+@@ -387,6 +393,10 @@
+                      'url':actual['state']['url'],'writes':writes,'verified_objects':items,'evidence_sha256':evid,
+                      'native_entities':{item['marker']:next(s['id'] for s in actual['shapes'] if item['marker'] in shape_text(s)) for item in items},
+                      'verified_at':completed,'evidence_dir':str(evidence_dir),
++                     'native_readback_complete':True,
++                     'visual_acceptance':'NOT_RUN_REQUIRES_REAL_SCREENSHOT_REVIEW',
++                     'v11_complete':False,
++                     'frozen_research_sha256':manifest.get('frozen_research_sha256'),
+                      'retired_history_limit':20,'removed_native_ids':[x['id'] for x,_ in removals]}
+             store.append('NATIVE_TV_RECEIPT',subject,payload,at=completed,idempotency_key='native-complete:'+job+':'+completed,snapshot_sha256=evid)
+             return payload
+--- a/tests/test_dev6_edges.py
++++ b/tests/test_dev6_edges.py
+@@ -31,8 +31,13 @@
+     def request(self,at=NOW,original=None,initial=False):
+         a,b=series('4H',at),series('1D',at)
+         if original:
++            # Change the synthetic source, then qualify it again. Mutating only the
++            # derived bar would deliberately violate the full-window source contract.
++            from global_market_intelligence.opportunities.native.data import qualify_capture
+             for bar in a['bars']:
+-                if timestamp(bar['closed_at'])>timestamp(NOW):bar['close']=108.
++                if timestamp(bar['closed_at'])>timestamp(NOW):
++                    a['native_by_open'][bar['opened_at']]['close']=108.
++            a=qualify_capture(a['native_capture'],instrument(),a['qualification_profile'],as_of=at)
+         p=compact_packet(a,b,computed(a),computed(b));v=answer(p)
+         if initial:
+             v['phase']='B';v['phase_segments'][0]['phase']='B'
+--- a/tests/test_native_monitor.py
++++ b/tests/test_native_monitor.py
+@@ -71,7 +71,11 @@
+         'events':[{'id':e['id'],'kind':e['type'],'bar_index':e['bar_index'],'source_candidate_id':e['id'],'disposition':'REVIEWED',
+                    'confirmation_indices':[n-1],'basis':'Synthetic evidence reference','counterevidence':'Not validated on markets'} for e in events],
+         'phase_segments':[{'phase':'D','start_index':n-8,'end_index':n-1,'low':98,'high':112,'event_ids':[e['id'] for e in events],'basis':'Synthetic pair'}],
+-        'conditions':{'focus':condition(103),'entry':condition(106),'expected':condition(111),'invalidate':condition(97,'low','le')},'evaluation_days':30}
++        'conditions':{'focus':condition(103),'entry':condition(106),'expected':condition(111),'invalidate':condition(97,'low','le')},'evaluation_days':30,'wave_comparisons':[],
++        'comparison_gap':'Synthetic flat-bar fixture does not demonstrate meaningful independent waves',
++        'book_basis':[{'rule_id':'READ_ORDER','bar_indices':[n-1],
++                       'application':'Synthetic source-located context example',
++                       'counterevidence':'Not a real market or semantic accuracy test'}]}
+ 
+ def packet():
+     ds=dataset();w=dataset('1W');return compact_packet(ds,w,engine_result(ds),engine_result(w))
+@@ -263,9 +267,9 @@
+     def test_missing_engine_does_not_install_one(self):
+         with self.assertRaises(NativeError):find_engine('/does/not/exist')
+     def test_subprocess_return_failure_not_success(self):
+-        r=run_process([__import__('sys').executable,'-c','raise SystemExit(3)'],cwd=self.ws,timeout=5);self.assertEqual(r['returncode'],3)
++        r=run_process([__import__('sys').executable,'-S','-c','raise SystemExit(3)'],cwd=self.ws,timeout=5);self.assertEqual(r['returncode'],3)
+     def test_subprocess_timeout(self):
+-        with self.assertRaisesRegex(NativeError,'TIMEOUT'):run_process([__import__('sys').executable,'-c','import time;time.sleep(10)'],cwd=self.ws,timeout=.1)
++        with self.assertRaisesRegex(NativeError,'TIMEOUT'):run_process([__import__('sys').executable,'-S','-c','import time;time.sleep(10)'],cwd=self.ws,timeout=.1)
+     def test_frozen_original_spec_unchanged(self):
+         ds=dataset();e=engine_result(ds);p=packet();v=validate_review(review_value(p),p)
+         req=request_for(instrument(),{'1D':ds},v,e,as_of=NOW,config=self.cfg)

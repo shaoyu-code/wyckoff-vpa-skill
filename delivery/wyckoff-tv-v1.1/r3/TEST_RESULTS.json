@@ -1,0 +1,42 @@
+{
+  "started_at": "2026-10-09T04:03:53.678161+00:00",
+  "ended_at": "2026-10-09T04:05:17.505911+00:00",
+  "elapsed_seconds": 83.828,
+  "run": 1148,
+  "passed": 1147,
+  "errors": 1,
+  "failures": 0,
+  "skipped": 0,
+  "failure_details": [],
+  "scope": "LINUX_SYNTHETIC_FIXTURES_NOT_REAL_TV_OR_MARKET_ACCURACY",
+  "python": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+  "revision": "r3",
+  "new_application_tests": 66,
+  "new_application_tests_included_in_total": true,
+  "auxiliary_tests": {
+    "historical_candidate_builder": {
+      "passed": 8
+    },
+    "source_preflight": {
+      "passed": 12
+    },
+    "public_delta_builder": {
+      "passed": 14
+    }
+  },
+  "native_tv": "NOT_RUN",
+  "current_mac": "NOT_RUN",
+  "actual_engine_month_week": "NOT_RUN",
+  "three_book_full_coverage": "NOT_COMPLETED",
+  "probability_calibration": "NOT_RUN",
+  "whole_source_reconstruction": {
+    "files": 713,
+    "two_routes_exact_match": true
+  },
+  "error_details": [
+    {
+      "test": "test_dashboard_table_values_have_one_arrow_safe_display_type (test_v1_release.V1ReleaseTests.test_dashboard_table_values_have_one_arrow_safe_display_type)",
+      "reason": "ModuleNotFoundError: streamlit; real optional dependency absent, test retained."
+    }
+  ]
+}

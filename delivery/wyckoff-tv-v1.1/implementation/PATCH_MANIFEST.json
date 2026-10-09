@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "GMI_SOURCE_DELTA_NOT_PRODUCTION_INSTALLER",
+  "baseline_zip_sha256": "60cf79cb04f58a3cbc58f17c08a9c229a9d24837aa20b66ae61b83d92f935ad4",
+  "baseline_root": "global-market-intelligence",
+  "baseline_date": "2026-09-19",
+  "baseline_is_current_mac_runtime": false,
+  "patch": {
+    "path": "existing_code.patch",
+    "sha256": "d5f3b678a55f38208abb3c6988b5c0201c4ba7dd27f7acbd6526fa574e42f04f"
+  },
+  "files": {
+    "schemas/native_price_reviewer.schema.json": {
+      "before_sha256": "99715b4abfdb1089b892fa07c96527dc5ae38c4d879f597c5a08f747c53b4fab",
+      "after_sha256": "a14a5bd90c78c24a8339d0d1278dd226d0e9a3de433cd6a2a81edaa5bed905fa",
+      "bytes": 17073,
+      "new_source": null
+    },
+    "schemas/native_reviewer.schema.json": {
+      "before_sha256": "a5081f240d80d8e6ac2ae9fda2297258562812c602ef7aba8076cf06e5dd15a5",
+      "after_sha256": "06b4e1a555f8f80e69775fd9aad3ce14c5739303f16f684ff9c22ce802fec34d",
+      "bytes": 16520,
+      "new_source": null
+    },
+    "src/global_market_intelligence/opportunities/native/book_rules_v11.py": {
+      "before_sha256": null,
+      "after_sha256": "dadabcf7a831f2aff43fbda1b159e8139ef9930e53aeb703a5fe24342d7934e4",
+      "bytes": 5749,
+      "new_source": "new/src/global_market_intelligence/opportunities/native/book_rules_v11.py"
+    },
+    "src/global_market_intelligence/opportunities/native/drawing.py": {
+      "before_sha256": "d586dae4cc54f078c4572ec4393460772b8dc8d744de78d9e92107fb7351c059",
+      "after_sha256": "f89cd6387a21ad785304890d05fc03e32d5f41125f82dd225dd03d0640fbd16c",
+      "bytes": 9102,
+      "new_source": null
+    },
+    "src/global_market_intelligence/opportunities/native/engine.py": {
+      "before_sha256": "5e9d4ed2eeb297b39c789b55fe99b66b125d4485cee111da8f646f2a3d20b589",
+      "after_sha256": "130c78131bfdeb0f6c538622e084119f81c08ddd36f75ad5437382d8adffed03",
+      "bytes": 6500,
+      "new_source": null
+    },
+    "src/global_market_intelligence/opportunities/native/evidence_v11.py": {
+      "before_sha256": null,
+      "after_sha256": "4cb71b31f933a6740d1fd98596de79661c2d4c9dfcc8a841b7670e7942ed249c",
+      "bytes": 13785,
+      "new_source": "new/src/global_market_intelligence/opportunities/native/evidence_v11.py"
+    },
+    "src/global_market_intelligence/opportunities/native/layout_v11.py": {
+      "before_sha256": null,
+      "after_sha256": "916561ef96a00e3f85a279016e7516cabc5ba218d2713cece9d2009fd70a99b1",
+      "bytes": 9052,
+      "new_source": "new/src/global_market_intelligence/opportunities/native/layout_v11.py"
+    },
+    "src/global_market_intelligence/opportunities/native/pipeline.py": {
+      "before_sha256": "d2dc5e7bcf681181eb2e24bfd2b6b9122ac293b2e006792a73b5dc5cd89ac0a3",
+      "after_sha256": "a2a6b561ff1705431594c05b9c231c6070a2711663e24694271242f1cf64393e",
+      "bytes": 47346,
+      "new_source": null
+    },
+    "src/global_market_intelligence/opportunities/native/reviewer.py": {
+      "before_sha256": "b9bff9ee8e79ec638ed06877d516fb007589d40f02a2931a775276cbfda247f2",
+      "after_sha256": "7b835d40e3d8db5c38e79c501ff74960f34893b4e8b362405ba57f0d6ebc5c55",
+      "bytes": 27341,
+      "new_source": null
+    },
+    "src/global_market_intelligence/opportunities/native/tradingview.py": {
+      "before_sha256": "04ea057bc37cbb06de9b6b279b72c7922fb97a9b449acda189bcb60a52637c15",
+      "after_sha256": "856d9cc52cb13b4b15fb2196dd56923a5c0a8655471e0c79d1fbadef5217f0c0",
+      "bytes": 24901,
+      "new_source": null
+    },
+    "tests/test_dev6_edges.py": {
+      "before_sha256": "1ebe325aade678337a1b3fff8834ec2cc722eedb6b1c668dff5a3583a807b201",
+      "after_sha256": "5bc77053cfb7e7f6c6441772e665845edc15d9eef05abe8af6c87d0063c145ea",
+      "bytes": 10587,
+      "new_source": null
+    },
+    "tests/test_native_monitor.py": {
+      "before_sha256": "77a285d7d8e2a57ab0baacba41f1102573914c1f3c641275ecea943dbbdfcd25",
+      "after_sha256": "ee223ae3be51435538efdb977b4c59aa89fd3b77795314a1d41dac097e2154eb",
+      "bytes": 20153,
+      "new_source": null
+    },
+    "tests/test_tv11_evidence_delivery.py": {
+      "before_sha256": null,
+      "after_sha256": "95caa48b4a30efb33512de715bfbb3da5e672be0864408167ac59b1e53d8fa4f",
+      "bytes": 18629,
+      "new_source": "new/tests/test_tv11_evidence_delivery.py"
+    }
+  },
+  "production_installable": false,
+  "local_latest_patch_integration": "NOT_VERIFIED"
+}

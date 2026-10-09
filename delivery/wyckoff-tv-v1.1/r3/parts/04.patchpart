@@ -1,0 +1,222 @@
+     def add(key,shape,points,label,color):
+         tag=marker(product,episode_id+':'+dataset['timeframe']+':'+key)
+-        items.append({'marker':tag,'shape':shape,'points':points,'text':'['+tf+'] '+label+'\n'+tag,
+-                      'display_priority':0 if key=='status' or key.startswith('invalidate:') else 1,
++        items.append({'marker':tag,'shape':shape,'points':points,'text':readable_lines('['+tf+'] '+label)+'\n'+tag,
++                      'display_priority':0 if key in {'status','opposition','comparison-gap'} or key.startswith('invalidate:') else 1,
+                       'display_role':'CURRENT_STATUS' if key=='status' else ('EVENT' if key.startswith('event:') else 'STRUCTURE'),
+                       'overrides':{'color':color,'linecolor':color,'linewidth':1,'fontsize':14,'backgroundColor':color,'transparency':92,'intervalsVisibilities':interval_visibility(tf)}})
+     down=review['cycle'] in {'DISTRIBUTION','REDISTRIBUTION'}
+@@ -87,9 +103,12 @@
+                '\n时×'+fmt(r['duration_ratio'])+' 量速×'+fmt(r['volume_rate_ratio'])+
+                (' · 未完成' if a['ongoing'] or b['ongoing'] else ''))
+         add('wave-summary:'+cmp['id'],'text',[point(b['end_index'],b['end_price'])],label,'#505A66')
++    if not review.get('measured_wave_comparisons'):
++        add('comparison-gap','text',[point(len(bars)-1,bars[-1]['low'])],
++            '量价比较：'+str(review.get('comparison_gap') or '尚未给出可比较波段；不编造量比。'),'#505A66')
+     # Always leave a visible dated status, including unclassified and terminal states.
+     add('status','text',[point(len(bars)-1,bars[-1]['high'])],
+-        'GMI '+level+' · '+review['cycle']+' · 数据 '+data_health+'\n量价截至 '+bars[-1]['closed_at'], '#505A66')
++        'GMI '+level+' · '+review['cycle']+' · 数据 '+data_health+'\n判断：'+review['summary']+'\n量价截至 '+bars[-1]['closed_at'], '#505A66')
+     result={'schema_version':'gmi-tv-native-manifest-v1','product_id':product,'instrument_id':digest(dataset['instrument']),
+         'symbol':symbol,'layout_id':layout_id,'timeframe':dataset['timeframe'],'episode_id':episode_id,
+         'price_basis_id':dataset['instrument']['price_basis_id'],'price_tolerance':price_tolerance,
+--- a/src/global_market_intelligence/opportunities/native/engine.py
++++ b/src/global_market_intelligence/opportunities/native/engine.py
+@@ -85,7 +85,7 @@
+         self.code_hash=digest({'version':self.version,'sources':self.source_files})
+ 
+     def compute(self,dataset: dict,run_dir: Path):
+-        interval={'1D':'1d','1W':'1wk','4H':'4h','1H':'1h'}[dataset['timeframe']]
++        interval={'1M':'1mo','1W':'1wk','1D':'1d','12H':'12h','4H':'4h','1H':'1h'}[dataset['timeframe']]
+         symbol=dataset['instrument']['provider_symbol']
+         write_engine_input(dataset,run_dir,symbol=symbol,interval=interval)
+         result=run_process([self.python,str(Path(__file__).with_name('compute_bridge.py')),
+--- a/src/global_market_intelligence/opportunities/native/evidence_v11.py
++++ b/src/global_market_intelligence/opportunities/native/evidence_v11.py
+@@ -14,7 +14,7 @@
+ from .tradingview import NativeError
+ 
+ FIELDS = ('open', 'high', 'low', 'close', 'volume')
+-VERSION = 'tv11-evidence-1'
++VERSION = 'tv11-evidence-3'
+ 
+ 
+ def instant(value: str) -> datetime:
+@@ -107,9 +107,46 @@
+             'scope': 'ALL_NORMALIZED_ROWS_BOUND_TO_QUALIFIED_SOURCE'}
+ 
+ 
++def bar_trading_seconds(bar: dict, instrument) -> float:
++    """Actual open-session overlap; do not call a month of nights trading time.
++
++    The source qualifier separately verifies this calendar and its version. This
++    function intersects actual opens/closes and removes lunch breaks. Calendar
++    failures propagate rather than silently substituting calendar duration.
++    """
++    from datetime import timedelta
++    from ...market_integrity import exchange_calendar
++    opened, closed=instant(bar['opened_at']), instant(bar['closed_at'])
++    if instrument.calendar_id=='24/7_UTC':
++        if instrument.calendar_version!='24/7_UTC-v1':
++            raise NativeError('WAVE_CALENDAR_VERSION_MISMATCH')
++        return (closed-opened).total_seconds()
++    import exchange_calendars
++    import pandas as pd
++    if instrument.calendar_version!='exchange_calendars:'+exchange_calendars.__version__:
++        raise NativeError('WAVE_CALENDAR_VERSION_MISMATCH')
++    cal=exchange_calendar(instrument.calendar_id,opened.year)
++    days=cal.sessions_in_range((opened.date()-timedelta(days=2)).isoformat(),
++                              (closed.date()+timedelta(days=2)).isoformat())
++    seconds=[]
++    for day in days:
++        op=cal.session_open(day).to_pydatetime();cl=cal.session_close(day).to_pydatetime()
++        left,right=max(opened,op),min(closed,cl)
++        if left>=right:continue
++        span=(right-left).total_seconds()
++        pause=cal.session_break_start(day);resume=cal.session_break_end(day)
++        if not pd.isna(pause) and not pd.isna(resume):
++            begin=max(left,pause.to_pydatetime());end=min(right,resume.to_pydatetime())
++            span-=max(0,(end-begin).total_seconds())
++        seconds.append(span)
++    result=math.fsum(seconds)
++    if result<=0:raise NativeError('WAVE_NO_VERIFIED_TRADING_TIME')
++    return result
++
++
+ def measure_span(bars: list[dict], *, start: int, end: int,
+                  start_field: str = 'close', end_field: str = 'close',
+-                 cutoff: str, ongoing: bool = False) -> dict:
++                 cutoff: str, ongoing: bool = False, instrument=None) -> dict:
+     """Inclusive selected span; explicit endpoint fields and no right-side pivot fill."""
+     if type(start) is not int or type(end) is not int or not 0 <= start < end < len(bars):
+         raise NativeError('WAVE_BOUNDS_INVALID')
+@@ -140,6 +177,7 @@
+     delta = last-first
+     duration = math.fsum(durations)
+     total = math.fsum(volumes)
++    trading=math.fsum(bar_trading_seconds(b,instrument) for b in selected) if instrument is not None else None
+     return {
+         'start_index': start, 'end_index': end, 'start_time': selected[0]['opened_at'],
+         'end_time': selected[-1]['opened_at'], 'closed_through': selected[-1]['closed_at'],
+@@ -151,9 +189,11 @@
+         'price_span': max(b['high'] for b in selected)-min(b['low'] for b in selected),
+         'return_fraction': delta/first if first > 0 else None,
+         'volume_total': total, 'volume_per_bar': total/len(selected),
+-        'trading_seconds': duration, 'volume_per_trading_second': total/duration,
++        'bar_interval_seconds': duration, 'volume_per_interval_second': total/duration,
++        'duration_basis': 'VERIFIED_SESSION_OPEN_SECONDS' if trading is not None else 'BAR_INTERVAL_ONLY_TRADING_TIME_UNKNOWN',
++        'trading_seconds': trading, 'volume_per_trading_second': total/trading if trading is not None else None,
+         'elapsed_seconds': (instant(selected[-1]['closed_at'])-instant(selected[0]['opened_at'])).total_seconds(),
+-        'price_progress_per_trading_second': abs(delta)/duration,
++        'price_progress_per_trading_second': abs(delta)/trading if trading is not None else None,
+         'ongoing': ongoing, 'selected_at': as_of.isoformat(),
+         'data_available_at': max(known_times).isoformat(),
+         'endpoint_status': 'ANALYST_SELECTED_SPAN_NOT_AUTOMATIC_PIVOT_CONFIRMATION',
+@@ -167,11 +207,14 @@
+         raise NativeError('INCOMPARABLE_WAVE_ENDPOINT_BASIS')
+     def ratio(field):
+         denominator = reference[field]
+-        return current[field]/denominator if denominator > 0 else None
++        numerator=current[field]
++        return numerator/denominator if numerator is not None and denominator is not None and denominator > 0 else None
+     flags = []
+     if reference['ongoing'] or current['ongoing']:
+         flags.append('INCOMPLETE_SPAN_NO_FINAL_CONTRACTION_CLAIM')
+-    if reference['trading_seconds'] != current['trading_seconds']:
++    if reference['trading_seconds'] is None or current['trading_seconds'] is None:
++        flags.append('TRADING_TIME_UNKNOWN_NO_TRADING_RATE_COMPARISON')
++    elif reference['trading_seconds'] != current['trading_seconds']:
+         flags.append('UNEQUAL_TRADING_DURATION_COMPARE_RATE_ALSO')
+     if reference['direction'] != current['direction']:
+         flags.append('OPPOSITE_DIRECTION_COMPARISON')
+@@ -188,6 +231,7 @@
+ 
+ def reviewed_comparisons(value: dict, dataset: dict) -> list[dict]:
+     """Compute model-selected comparisons; the model is not trusted with numbers."""
++    from ..contracts import Instrument
+     requests = value.get('wave_comparisons', [])
+     if not isinstance(requests, list) or len(requests) > 3:
+         raise NativeError('WAVE_COMPARISON_LIMIT')
+@@ -203,7 +247,8 @@
+             span = item[role]
+             measured[role] = measure_span(dataset['bars'], start=span['start_index'],
+                 end=span['end_index'], start_field=span['start_price_field'],
+-                end_field=span['end_price_field'], ongoing=span['ongoing'], cutoff=cutoff)
++                end_field=span['end_price_field'], ongoing=span['ongoing'], cutoff=cutoff,
++                instrument=Instrument(**dataset['instrument']) if dataset.get('instrument') else None)
+         result.append({'id': key, **measured,
+                        'comparison': compare_spans(measured['reference'], measured['current']),
+                        'basis': item['basis']})
+--- /dev/null
++++ b/src/global_market_intelligence/opportunities/native/journal_v11.py
+@@ -0,0 +1,376 @@
++"""Main-only immutable research journal and calendar review publishing.
++
++No scheduler is installed. Called by the existing runner (including IDLE) or the
++explicit `journal` command. A configured timezone determines calendar periods;
++unknown timezone/Vault path is not silently replaced. No notes outside the owned
++subdirectory are read or changed. This is evidence rendering, not a market model.
++"""
++from __future__ import annotations
++from copy import deepcopy
++from datetime import datetime, timedelta, timezone
++import hashlib
++import json
++import os
++from pathlib import Path, PurePosixPath
++import secrets
++import stat
++from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
++from ..contracts import canonical, digest
++from ...market_integrity import timestamp
++from .tradingview import NativeError
++from .evidence_v11 import audit_window
++
++VERSION='tv11-journal-2'
++KINDS={'TV11_MAIN_RECORD','TV11_CALENDAR_REVIEW','TV11_DAILY_CHECK'}
++
++
++def validate_journal_config(config: dict | None) -> dict:
++    if config is None:return {'enabled':False,'timezone':None,'vault_path':None,'folder':'Wyckoff'}
++    if not isinstance(config,dict) or set(config)-{'enabled','timezone','vault_path','folder'}:
++        raise ValueError('JOURNAL_CONFIG_KEYS_INVALID')
++    if type(config.get('enabled')) is not bool:raise ValueError('JOURNAL_ENABLED_BOOLEAN_REQUIRED')
++    zone=config.get('timezone')
++    if zone is not None:
++        if not isinstance(zone,str):raise ValueError('JOURNAL_TIMEZONE_INVALID')
++        try:ZoneInfo(zone)
++        except (ZoneInfoNotFoundError,ValueError) as exc:raise ValueError('JOURNAL_TIMEZONE_INVALID') from exc
++    folder=config.get('folder','Wyckoff')
++    if not isinstance(folder,str):raise ValueError('JOURNAL_FOLDER_INVALID')
++    parts=PurePosixPath(folder)
++    if not folder or parts.is_absolute() or '..' in parts.parts or '\\' in folder or str(parts)!=folder:
++        raise ValueError('JOURNAL_FOLDER_INVALID')
++    vault=config.get('vault_path')
++    if vault is not None and (not isinstance(vault,str) or not Path(vault).expanduser().is_absolute()):
++        raise ValueError('JOURNAL_VAULT_MUST_BE_EXPLICIT_ABSOLUTE_PATH')
++    return {'enabled':config['enabled'],'timezone':zone,'vault_path':vault,'folder':folder}
++
++
++def _record_events(store,as_of):
++    return [e for e in store.events() if e['kind'] in KINDS
++            and timestamp(e['recorded_at'])<=timestamp(as_of)]
++
++
++def freeze_main_record(store,dataset: dict,review: dict,*,at: str,model_version: str,track_id: str) -> dict:
++    """Every valid read, including no opportunity, keeps its actual first record time."""
++    audit=audit_window(dataset)
++    known=max(timestamp(dataset.get('captured_at',at)),timestamp(dataset.get('qualification_as_of',at)))
++    if known>timestamp(at):raise NativeError('JOURNAL_FUTURE_INPUT')
++    source_key=digest({'dataset':dataset,'review':review,'model':model_version,'track_id':track_id,'version':VERSION})
++    for event in reversed(_record_events(store,at)):
++        if event['kind']=='TV11_MAIN_RECORD' and event['payload']['source_fingerprint']==source_key:
++            return store.read_snapshot(event['snapshot_sha256'])
++    body={'schema_version':'gmi-tv11-main-record-v1','record_type':'MAIN_RESEARCH','lineage_scope':'MAIN_ONLY',
++          'contains_sidecar_targets':False,'version':VERSION,'track_id':track_id,
++          'product_id':dataset['instrument']['product_id'],'timeframe':dataset['timeframe'],
++          'recorded_at':at,'data_cutoff':dataset['bars'][-1]['closed_at'],
++          'source_fingerprint':source_key,'dataset_sha256':store.snapshot(dataset),
++          'window_audit':audit,'review':deepcopy(review),'model_version':model_version,
++          'tv_status_at_freeze':'NOT_YET_DELIVERED','probability_status':'NO_CALIBRATED_PROBABILITY',
++          'method_coverage':review.get('method_coverage','SCOPE_NOT_VERIFIED')}

@@ -1,0 +1,193 @@
++from global_market_intelligence.opportunities.native.pipeline import run_once,validate_config
++from global_market_intelligence.opportunities.native.reviewer import CodexReviewer,PRICE_SCHEMA
++from global_market_intelligence.opportunities.native.data import qualify_capture
++from global_market_intelligence.opportunities.native.tradingview import NativeError
++from global_market_intelligence.opportunities.native.scope_v11 import REQUESTED_ASSETS,scope_report
++from global_market_intelligence.opportunities.store import EventStore
++
++
++class TradingTimeTests(unittest.TestCase):
++    def exch(self,name='XNYS'):
++        return replace(instrument(),calendar_id=name,calendar_version='exchange_calendars:'+exchange_calendars.__version__,
++                       timezone='America/New_York',session_definition=name+':SESSION_OPEN')
++    def bar(self,inst,day,tf='1M'):
++        op,cl,_=period_bounds(inst,tf,day)
++        return {'opened_at':op.isoformat(),'closed_at':cl.isoformat(),'open':100.,'high':110.,'low':90.,'close':101.,'volume':1000.}
++    def test_month_excludes_nights_weekends(self):
++        inst=self.exch();b=self.bar(inst,date(2026,9,1));seconds=bar_trading_seconds(b,inst)
++        self.assertEqual(seconds,21*6.5*3600);self.assertLess(seconds,(datetime.fromisoformat(b['closed_at'])-datetime.fromisoformat(b['opened_at'])).total_seconds())
++    def test_half_day_is_not_full_day(self):
++        inst=self.exch();b=self.bar(inst,date(2024,11,29),'1D');self.assertEqual(bar_trading_seconds(b,inst),3.5*3600)
++    def test_lunch_break_excluded(self):
++        inst=self.exch('XHKG');b=self.bar(inst,date(2026,9,2),'1D');self.assertEqual(bar_trading_seconds(b,inst),5.5*3600)
++    def test_24h_month_has_calendar_duration(self):
++        inst=instrument();b=self.bar(inst,date(2024,2,1));self.assertEqual(bar_trading_seconds(b,inst),29*86400)
++    def test_unknown_calendar_does_not_claim_trading_time(self):
++        bars=qualified('1M')['bars'][:2];s=measure_span(bars,start=0,end=1,cutoff=AT)
++        self.assertIsNone(s['trading_seconds']);self.assertIsNone(s['volume_per_trading_second'])
++        self.assertIn('UNKNOWN',s['duration_basis'])
++    def test_known_calendar_time_basis(self):
++        inst=self.exch();bars=[self.bar(inst,date(2026,m,1)) for m in (8,9)]
++        s=measure_span(bars,start=0,end=1,cutoff=AT,instrument=inst)
++        self.assertEqual(s['trading_seconds'],42*6.5*3600)
++    def test_wrong_calendar_version_stops_rate(self):
++        inst=replace(instrument(),calendar_version='24/7_UTC-unverified')
++        with self.assertRaisesRegex(NativeError,'CALENDAR_VERSION'):
++            bar_trading_seconds(self.bar(inst,date(2026,9,1)),inst)
++    def test_negative_price_return_not_nonsense(self):
++        bars=qualified('1M')['bars'][:2]
++        for b in bars:b.update(open=-5,high=-1,low=-8,close=-4)
++        s=measure_span(bars,start=0,end=1,cutoff=AT,instrument=instrument());self.assertIsNone(s['return_fraction'])
++    def test_known_volume_rate_different_from_calendar_rate(self):
++        inst=self.exch();bars=[self.bar(inst,date(2026,m,1)) for m in (8,9)]
++        s=measure_span(bars,start=0,end=1,cutoff=AT,instrument=inst)
++        self.assertGreater(s['volume_per_trading_second'],s['volume_per_interval_second'])
++    def test_missing_trading_rate_comparison_is_null(self):
++        ds=qualified('1M');a=measure_span(ds['bars'],start=0,end=2,cutoff=AT);b=measure_span(ds['bars'],start=3,end=5,cutoff=AT)
++        c=compare_spans(a,b);self.assertIsNone(c['duration_ratio']);self.assertIsNone(c['volume_rate_ratio'])
++        self.assertIn('TRADING_TIME_UNKNOWN_NO_TRADING_RATE_COMPARISON',c['flags'])
++
++
++class ProductScopeTests(unittest.TestCase):
++    def test_missing_seven_assets_not_silently_btc_only(self):
++        report=scope_report(template());self.assertEqual({r['asset_key'] for r in report['requested_assets']},set(REQUESTED_ASSETS))
++        self.assertTrue(all(r['status']=='PRODUCT_SELECTION_PENDING' for r in report['requested_assets']))
++    def test_configuration_not_called_supported(self):
++        c=template();p=product();p['asset_key']='BTC';c['products']=[p]
++        r=scope_report(c);self.assertIsNone(r['supported_product_count']);self.assertEqual(r['configured_product_count'],1)
++        self.assertEqual(r['requested_assets'][0]['status'],'CONFIGURED_NOT_VALIDATED')
++    def test_no_crude_proxy_guessed(self):
++        c=template();p=product();p['instrument']['underlying_id']='CL';c['products']=[p]
++        r=scope_report(c);self.assertIsNone(r['products'][0]['asset_key'])
++        self.assertEqual(next(v for v in r['requested_assets'] if v['asset_key']=='CRUDE_OIL')['status'],'PRODUCT_SELECTION_PENDING')
++    def test_explicit_seven_product_scope(self):
++        c=template()
++        for i,key in enumerate(REQUESTED_ASSETS):
++            p=product();p['asset_key']=key;p['symbol']='SYNTH:'+str(i);p['layout_id']='LAYOUT_'+str(i)
++            p['instrument'].update(product_id=p['symbol'],provider_symbol=p['symbol'],underlying_id=key)
++            p.update(analysis_timeframes=['1M','1W','1D','4H'],layout_mode='SEQUENTIAL_SAME_PRODUCT')
++            c['products'].append(p)
++        validate_config(c);r=scope_report(c);self.assertEqual(r['configured_research_track_count'],28)
++        self.assertIsNone(r['supported_product_count'])
++    def test_cross_asset_layout_rejected(self):
++        c=template();a=product();b=deepcopy(a);b['symbol']='SYNTH:OTHER';b['instrument'].update(product_id=b['symbol'],provider_symbol=b['symbol'])
++        a['layout_mode']=b['layout_mode']='SEQUENTIAL_SAME_PRODUCT';c['products']=[a,b]
++        with self.assertRaisesRegex(ValueError,'one saved'):validate_config(c)
++    def test_spot_perpetual_separate_identity(self):
++        a=instrument();b=replace(a,instrument_type='PERPETUAL');self.assertNotEqual(a.identity,b.identity)
++    def test_contract_month_separate_identity(self):
++        a=replace(instrument(),instrument_type='FUTURES',contract_month='2026-12');b=replace(a,contract_month='2027-03');self.assertNotEqual(a.identity,b.identity)
++    def test_profile_cannot_relabel_other_product(self):
++        c=capture_frame('1M');inst=replace(instrument(),provider_symbol='SYNTH:OTHER',product_id='SYNTH:OTHER')
++        with self.assertRaisesRegex(NativeError,'WRONG_CHART_SYMBOL'):
++            qualify_capture(c,inst,{**product()['profile'],'symbol':'SYNTH:UNIT'},as_of=AT)
++    def test_calendar_code_change_invalidates_capture(self):
++        a=capture_signature(product(),template())
++        with patch('global_market_intelligence.opportunities.native.cache.qualification_code_signature',return_value='changed-calendar'):
++            self.assertNotEqual(a,capture_signature(product(),template()))
++    def test_price_schema_matches_live_reviewer(self):
++        stored=json.loads((Path(__file__).resolve().parents[1]/'schemas/native_price_reviewer.schema.json').read_text())
++        self.assertEqual(stored,PRICE_SCHEMA)
++    def test_exchange_month_config_requires_explicit_mode(self):
++        c=template();p=product();p['analysis_timeframes']=['1M','1D'];p['instrument'].update(calendar_id='XNYS',calendar_version='exchange_calendars:'+exchange_calendars.__version__)
++        c['products']=[p]
++        with self.assertRaisesRegex(ValueError,'PERIOD_TIMESTAMP_MODE_REQUIRED'):validate_config(c)
++    def test_add_current_default_shared_periods_no_enable(self):
++        c=template();before=deepcopy(c)
++        class Chart:
++            def __init__(self,*a):pass
++            def connect(self):return self
++            def close(self):pass
++            def capabilities(self):
++                return {'state':{'symbol':'SYNTH:UNIT','info':{'name':'UNIT','pricescale':100,'minmov':1,'currency_code':'USD','volume_type':'base'},'ext':{}}}
++        with patch('global_market_intelligence.opportunities.native.cli.TradingView',Chart):
++            v=add_current(c,layout_id='TEST',instrument_type='SPOT',calendar='24/7_UTC',volume_basis='BASE_UNITS',
++                          underlying='BTC',contract_month=None,price_basis='RAW',intraday_alignment='')
++        self.assertEqual(c,before);self.assertFalse(v['enabled']);self.assertFalse(v['write_tv'])
++        self.assertEqual(v['products'][0]['analysis_timeframes'],['1M','1W','1D','4H'])
++        self.assertEqual(len(v['products'][0]['delivery_layouts']),4)
++
++
++class MultiProductPipeline(unittest.TestCase):
++    def setUp(self):
++        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.ws=Path(self.tmp.name)
++        self.c=template();self.c.update(enabled=True,write_tv=False,review_model='SYNTHETIC',min_monthly_bars=2,min_weekly_bars=2,min_daily_bars=2,min_4h_bars=2)
++        for name,asset in [('ONE','BTC'),('TWO','GOLD')]:
++            p=product();p['symbol']='SYNTH:'+name;p['layout_id']='TEST_'+name;p['asset_key']=asset
++            p['instrument'].update(product_id=p['symbol'],provider_symbol=p['symbol'],underlying_id=asset)
++            p.update(analysis_timeframes=['1M','1W','1D','4H'],layout_mode='SEQUENTIAL_SAME_PRODUCT')
++            self.c['products'].append(p)
++        self.seen=[];self.fail_first=False;outer=self
++        class Engine:
++            code_hash='SYNTHETIC_ONLY'
++            def compute(self,ds,root):return computed(ds)
++        class Review(CodexReviewer):
++            def __init__(self):super().__init__(model='SYNTHETIC')
++            def _execute(self,p,r,schema,prompt):
++                outer.seen.append(((p.get('primary') or p['daily'])['instrument']['provider_symbol'],p['primary_timeframe']));return answer(p),{'origin':'SYNTHETIC'}
++        class Chart:
++            def connect(self):return self
++            def close(self):pass
++            def capture(self,symbol,tf,**kw):
++                if outer.fail_first and symbol=='SYNTH:ONE':raise NativeError('SYNTHETIC_FEED_DOWN')
++                c=capture_frame(tf,count=kw['count']);c['state']['symbol']=symbol;return c
++        self.eng=Engine();self.rev=Review();self.factory=lambda p:Chart()
++    def runone(self):return run_once(self.ws,self.c,engine=self.eng,reviewer=self.rev,tv_factory=self.factory,clock=lambda:AT)
++    def test_eight_research_tracks_not_one_asset_cache(self):
++        r=self.runone();self.assertEqual(r['state'],'COMPLETED',r);self.assertEqual(len(set(self.seen)),8)
++        st=EventStore(self.ws/'archive');recs=[e for e in st.events() if e['kind']=='TV11_MAIN_RECORD'];self.assertEqual(len(recs),8)
++        self.assertEqual(len(set(e['payload']['track_id'] for e in recs)),8)
++    def test_feed_failure_does_not_stop_other_asset(self):
++        self.fail_first=True;r=self.runone();self.assertEqual(r['state'],'PARTIAL',r)
++        self.assertEqual({s for s,t in self.seen},{'SYNTH:TWO'});self.assertEqual(len(self.seen),4)
++
++
++if __name__=='__main__':unittest.main()
+--- /dev/null
++++ b/tests/test_tv11_r3_periods.py
+@@ -0,0 +1,219 @@
++"""Calendar/independent-track regression. All prices and chart APIs are synthetic."""
++from __future__ import annotations
++import copy
++from collections import Counter
++from dataclasses import asdict, replace
++from datetime import date, datetime, timedelta, timezone
++import json
++from pathlib import Path
++import tempfile
++import unittest
++from test_native_monitor import instrument, product, engine_result, review_value
++from global_market_intelligence.opportunities.contracts import Bar, Instrument, digest, validate_spec
++from global_market_intelligence.opportunities.periods_v11 import next_month, period_bounds, utc_interval
++from global_market_intelligence.opportunities.sessions import interval_status, history_contiguous
++from global_market_intelligence.opportunities.timeframes import tracks, selected_frames, track_key, CONTEXT_FRAME, ENGINE_INTERVALS
++from global_market_intelligence.opportunities.native.data import qualify_capture, bar_interval
++from global_market_intelligence.opportunities.native.scheduling import aggregate_check, expected_close
++from global_market_intelligence.opportunities.native.tradingview import RESOLUTIONS, NativeError
++from global_market_intelligence.opportunities.native.cli import template, configure_timeframes
++from global_market_intelligence.opportunities.native.pipeline import run_once, request_for, validate_config
++from global_market_intelligence.opportunities.native.reviewer import compact_packet, validate_review, CodexReviewer
++from global_market_intelligence.opportunities.native.drawing import make_manifest
++from global_market_intelligence.opportunities.native.layout_v11 import visibility
++from global_market_intelligence.opportunities.store import EventStore
++from global_market_intelligence.opportunities.review import latest_assessments
++
++UTC=timezone.utc
++AT='2026-10-09T12:02:00+00:00'
++
++
++def capture_frame(tf, at=AT, count=2000):
++    stamp=datetime.fromisoformat(at)
++    start=datetime(2024,1,1,tzinfo=UTC)
++    rows=[]
++    while start<=stamp:
++        opened,closed,_=utc_interval(start,tf)
++        rows.append({'time':int(opened.timestamp()),'open':100.,'high':112.,'low':98.,'close':100.,
++                     'volume':(closed-opened).total_seconds()/86400*1000})
++        start=closed
++    return {'origin':'TV_NATIVE_CDP','captured_at':at,'timeframe':tf,
++            'state':{'symbol':'SYNTH:UNIT','resolution':RESOLUTIONS[tf],'chart_type':1,
++                     'layout_id':'SYNTH_LAYOUT','info':{'name':'UNIT','volume_type':'base'},'ext':{}},
++            'bars':rows[-count:]}
++
++

@@ -1,0 +1,203 @@
+         p=packet();v=validate_review(review_value(p),p);prior={'level':'INVALIDATED','as_of':'2026-08-01T00:00:00Z'}
+         self.assertTrue(is_new_episode(prior,v,dataset()))
+-    def test_no_opportunity_needs_no_tv_write(self):
++    def test_no_opportunity_still_delivers_research_without_forecast(self):
+         class NoCandidate(FakeReviewer):
+             def review(self,p,r):
+                 v=review_value(p);v.update(candidate=False,candidate_routes=[],phase='UNCLASSIFIED',phase_segments=[]);return validate_review(v,p)
+         with tempfile.TemporaryDirectory() as t:
+             cfg=template();cfg.update(enabled=True,write_tv=True,products=[product()],min_daily_bars=2,min_weekly_bars=2)
+-            r=run_once(Path(t),cfg,engine=FakeEngine(),reviewer=NoCandidate(),tv_factory=lambda _:FakeTV(),clock=Clock())
+-            self.assertEqual(r['state'],'COMPLETED',r);self.assertEqual(r['products'][0]['tv_delivery'],'NOT_REQUIRED')
++            clock=Clock()
++            class ObservationChart(FakeTV):
++                # Read-only capture fixture plus the real transaction implementation;
++                # this does not pretend to measure a physical/native viewport.
++                def __init__(self):
++                    self.backend=MemoryChart();self.backend.clock=clock
++                def deliver(self,manifest,**kwargs):return self.backend.deliver(manifest,**kwargs)
++            tv=ObservationChart()
++            r=run_once(Path(t),cfg,engine=FakeEngine(),reviewer=NoCandidate(),tv_factory=lambda _:tv,clock=clock)
++            self.assertEqual(r['state'],'PARTIAL',r)  # Native visual acceptance is NOT_RUN.
++            self.assertEqual(r['products'][0]['tv_delivery'],'DELIVERED_READBACK',r)
++            self.assertGreater(tv.backend.seq,0)
++            self.assertTrue(r['products'][0]['visual_acceptance'].startswith('NOT_RUN'))
++            events=EventStore(Path(t)/'archive').events()
++            self.assertTrue(any(e['kind']=='TV11_MAIN_RECORD' for e in events))
++            self.assertFalse(any(e['kind']=='ASSESSMENT' for e in events))
+     def test_true_receipt_unlocks_only_verified_exact_layout(self):
+         with tempfile.TemporaryDirectory() as t:
+             ws=Path(t);cfg=template();cfg.update(enabled=True,products=[product()],min_daily_bars=2,min_weekly_bars=2)
+--- a/tests/test_tv11_evidence_delivery.py
++++ b/tests/test_tv11_evidence_delivery.py
+@@ -17,7 +17,7 @@
+ from global_market_intelligence.opportunities.native.drawing import make_manifest, validate_manifest
+ from global_market_intelligence.opportunities.native.reviewer import compact_packet, validate_review
+ from global_market_intelligence.opportunities.native.tradingview import NativeError
+-from test_native_monitor import dataset, engine_result, review_value, packet, NOW
++from test_native_monitor import dataset, engine_result, review_value, packet, NOW, instrument
+ from test_native_delivery import MemoryChart
+ 
+ 
+@@ -39,7 +39,7 @@
+ 
+ 
+ def span(bars, start=0, end=2, **kwargs):
+-    return measure_span(bars,start=start,end=end,cutoff='2026-02-01T00:00:00Z',**kwargs)
++    return measure_span(bars,start=start,end=end,cutoff='2026-02-01T00:00:00Z',instrument=instrument(),**kwargs)
+ 
+ 
+ class WindowAndWaveTests(unittest.TestCase):
+--- /dev/null
++++ b/tests/test_tv11_journal_viewport.py
+@@ -0,0 +1,313 @@
++"""Isolated synthetic evidence/VM tests; no user TV, Vault or market is accessed."""
++from copy import deepcopy
++from datetime import datetime
++import json
++import os
++from pathlib import Path
++import subprocess
++import tempfile
++import unittest
++from unittest.mock import patch
++from test_native_monitor import dataset,packet,review_value,validate_review,product,FakeEngine,FakeReviewer,FakeTV,Clock,NOW
++from global_market_intelligence.opportunities.store import EventStore
++from global_market_intelligence.opportunities.contracts import digest
++from global_market_intelligence.opportunities.native.journal_v11 import (
++    freeze_main_record, main_context, periods, create_calendar_reviews, sync_vault,
++    journal_checkpoint, validate_journal_config, record_daily_check, _safe_path, _new_file)
++from global_market_intelligence.opportunities.native.tradingview import target_witness,assert_target,assert_interaction_continuity,NativeError,TradingView
++from global_market_intelligence.opportunities.native.layout_v11 import arrange_labels,project,inverse_price
++from global_market_intelligence.opportunities.native.cli import template
++from global_market_intelligence.opportunities.native.pipeline import run_once,validate_config
++from global_market_intelligence.opportunities.timeframes import tracks
++
++
++def context():
++    return {'guard_version':'tv11-context-2','layout_id':'L','symbol':'SYNTH:UNIT','resolution':'240','chart_type':1,
++            'document_epoch':123,'chart_instance':'a','series_instance':'s','interaction_epoch':0,'ext':{'session':'full'},'info':{'name':'UNIT'}}
++
++
++class TargetContractTests(unittest.TestCase):
++    def test_target_requires_instance_and_interaction_generation(self):
++        s=context();del s['chart_instance']
++        with self.assertRaises(NativeError):target_witness(s)
++    def test_metadata_changes_do_not_match(self):
++        s=context();w=target_witness(s);s['ext']['session']='regular'
++        with self.assertRaisesRegex(NativeError,'MODIFIERS'):assert_target(s,w)
++    def test_product_and_cycle_and_pane_and_document_protected(self):
++        for field in ('symbol','resolution','chart_instance','series_instance','document_epoch','interaction_epoch'):
++            with self.subTest(field=field):
++                s=context();w=target_witness(s);s[field]='different'
++                with self.assertRaises(NativeError):assert_target(s,w)
++    def test_controlled_cycle_change_keeps_user_input_guard(self):
++        s=context();w=target_witness(s);s['resolution']='1D';s['series_instance']='new'
++        assert_target(s,w,allow_resolution_change=True)
++        s['interaction_epoch']=1
++        with self.assertRaises(NativeError):assert_target(s,w,allow_resolution_change=True)
++    def test_new_guard_request_is_sent_to_actual_adapter(self):
++        class Client:
++            def evaluate(self,req):return req
++        tv=TradingView('http://localhost:9222','L',client=Client());tv._guard_witness=target_witness(context())
++        req=tv._request('create',item={})
++        self.assertEqual(req['expected_target']['chart_instance'],'a')
++
++    def test_restore_leaves_changed_pane_and_product_to_human(self):
++        before=context();after=context();after['interaction_epoch']+=1;after['symbol']='OTHER'
++        with self.assertRaisesRegex(NativeError,'NO_FORCE_RESTORE'):assert_interaction_continuity(before,after)
++    def test_guarded_save_does_not_send_global_keyboard_shortcut(self):
++        import base64
++        class Client:
++            def __init__(self):self.calls=[]
++            def call(self,method,params):self.calls.append(method);return {'data':base64.b64encode(b'SYNTHETIC_NOT_PNG').decode()}
++        class TV(TradingView):
++            def _request(self,action,**kwargs):return {'method':'keyboard_required'} if action=='save' else context()
++        client=Client();tv=TV('http://localhost:9222','L',client=client);tv._guard_witness=target_witness(context())
++        with tempfile.TemporaryDirectory() as t:
++            with self.assertRaisesRegex(NativeError,'NO_KEYBOARD_FALLBACK'):tv.save_reload(evidence_dir=Path(t))
++        self.assertNotIn('Input.dispatchKeyEvent',client.calls);self.assertNotIn('Page.reload',client.calls)
++
++
++class NativeCoordinatesTests(unittest.TestCase):
++    def view(self):
++        return {'id':'S','product_id':'S','timeframe':'4H','data_cutoff':'2026-01-01','scale':'native_samples',
++            'time_x':{'1':50,'2':150,'3':250},'price_grid':[[0,120],[150,100],[300,80]],
++            'price_low':80,'price_high':120,'price_y_top':0,'price_y_bottom':300,
++            'work_rect':[0,0,500,300],'obstacles':[],'text_sizes':{'[GMI:test]':[100,20]},
++            'bbox_basis':'CANVAS_CONSERVATIVE_ESTIMATE','manual_bounds_unresolved':[]}
++    def test_native_samples_project_and_inverse_without_assuming_log(self):
++        v=self.view();x,y=project({'time':2,'price':110},v)
++        self.assertEqual((x,y),(150,75));self.assertEqual(inverse_price(y,v),110)
++    def test_bad_native_grid_rejected(self):
++        v=self.view();v['price_grid'][1][1]=130
++        with self.assertRaisesRegex(NativeError,'NONMONOTONIC'):project({'time':2,'price':110},v)
++    def test_estimate_is_not_native_visual_pass(self):
++        v=self.view();m={'product_id':'S','timeframe':'4H','data_cutoff':'2026-01-01','items':[
++            {'shape':'text','marker':'[GMI:test]','points':[{'time':2,'price':100}],'text':'test','overrides':{}}]}
++        r=arrange_labels(m,v)
++        self.assertIn('ESTIMATED',r['layout_metric_quality']);self.assertIn('NOT_RUN',r['visual_acceptance'])
++    def test_unknown_manual_bounds_never_disappear(self):
++        v=self.view();v['manual_bounds_unresolved']=['human']
++        with self.assertRaisesRegex(NativeError,'MANUAL_BOUNDS'):
++            arrange_labels({'product_id':'S','timeframe':'4H','data_cutoff':'2026-01-01','items':[]},v)
++
++    def test_chart_includes_actual_judgment_and_comparison_gap_not_only_labels(self):
++        from global_market_intelligence.opportunities.native.drawing import make_manifest
++        d=dataset();r=validate_review(review_value(packet()),packet())
++        m=make_manifest(d,r,symbol='SYNTH:UNIT',layout_id='SYNTH_LAYOUT',episode_id='SYNTH',price_tolerance=.001)
++        text=''.join(x['text'].replace('\n','') for x in m['items'])
++        self.assertIn(r['summary'].replace('\n',''),text)
++        self.assertIn('量价比较',text);self.assertIn(r['comparison_gap'].replace('\n',''),text)
++    def test_display_wrapping_keeps_numeric_tokens_and_all_meaning(self):
++        from global_market_intelligence.opportunities.native.drawing import readable_lines
++        original='判断：'+('价格回落但尚不能确认供应耗尽。'*8)+'失效 12345678.123456789'
++        wrapped=readable_lines(original)
++        self.assertEqual(wrapped.replace('\n',''),original)
++        self.assertIn('12345678.123456789',wrapped)
++
++
++class JournalTests(unittest.TestCase):
++    def setUp(self):
++        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
++        self.root=Path(self.tmp.name);self.store=EventStore(self.root/'archive');self.ds=dataset()
++        self.review=validate_review(review_value(packet()),packet())
++        self.vault=self.root/'vault';self.vault.mkdir()
++        self.config={'enabled':True,'timezone':'Asia/Shanghai','vault_path':str(self.vault),'folder':'Wyckoff'}
++    def freeze(self,at=NOW,review=None):
++        return freeze_main_record(self.store,self.ds,review or self.review,at=at,model_version='SYNTHETIC',track_id='SYNTH@1D')
++    def test_full_dataset_is_frozen_before_note(self):
++        r=self.freeze();self.assertEqual(self.store.read_snapshot(r['dataset_sha256']),self.ds)
++        self.assertFalse(any(self.vault.iterdir()))
++    def test_repeated_same_judgment_not_new_opportunity(self):
++        first=self.freeze();second=self.freeze('2026-09-08T12:00:00Z')
++        self.assertEqual(first,second);self.assertEqual(len(self.store.events()),1)
++    def test_changed_judgment_adds_new_record_preserving_original(self):
++        first=self.freeze();r=deepcopy(self.review);r['summary']='different synthetic conclusion'
++        self.freeze('2026-09-08T12:00:00Z',r)
++        self.assertEqual(len(self.store.events()),2)
++        self.assertEqual(self.store.read_snapshot(self.store.events()[0]['snapshot_sha256']),first)
++    def test_failed_freeze_does_not_create_note(self):
++        with patch.object(self.store,'snapshot',side_effect=OSError('disk full')):
++            with self.assertRaises(OSError):self.freeze()
++        self.assertFalse(any(self.vault.iterdir()))
++    def test_context_filters_before_sidecar_snapshot_read(self):
++        self.freeze();key=self.store.snapshot({'target':9999})
++        self.store.append('PNF_TARGET','pnf',{'value':9999},at=NOW,idempotency_key='pnf',snapshot_sha256=key)
++        self.store.events()  # Validate the whole ledger independently of context selection.
++        original=self.store.read_snapshot
++        def reader(k):
++            self.assertNotEqual(k,key);return original(k)
++        with patch.object(self.store,'read_snapshot',side_effect=reader):
++            result=main_context(self.store,track_id='SYNTH@1D',as_of=NOW)
++        self.assertEqual(len(result),1);self.assertNotIn('9999',str(result))
++    def test_context_no_future_records(self):
++        self.freeze();self.assertEqual(main_context(self.store,track_id='SYNTH@1D',as_of='2026-09-01T00:00:00Z'),[])
++    def test_config_does_not_choose_missing_timezone_or_vault(self):
++        cfg={'journal':{'enabled':True,'timezone':None,'vault_path':None}}
++        self.assertEqual(journal_checkpoint(self.store,cfg,as_of=NOW)['status'],'CONFIGURATION_PENDING')
++    def test_real_vault_writes_only_owned_folder(self):
++        (self.vault/'personal.md').write_text('preserve');self.freeze()
++        result=sync_vault(self.store,self.config,as_of=NOW)
++        self.assertEqual(result['status'],'SYNCED');self.assertEqual((self.vault/'personal.md').read_text(),'preserve')
++        text=next((self.vault/'Wyckoff/daily').rglob('*.md')).read_text()

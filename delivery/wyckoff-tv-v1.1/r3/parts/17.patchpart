@@ -1,0 +1,174 @@
++def qualified(tf, at=AT):
++    return qualify_capture(capture_frame(tf,at),instrument(),{**product()['profile'],'symbol':'SYNTH:UNIT'},as_of=at)
++
++
++def computed(ds):
++    fake=engine_result({**ds,'timeframe':'1D'})
++    fake['candidate']['interval']=ENGINE_INTERVALS[ds['timeframe']]
++    fake['candidate']['symbol']=ds['instrument']['provider_symbol']
++    fake['candidate_sha256']=digest(fake['candidate'])
++    return fake
++
++
++def answer(packet,candidate=False):
++    pr=packet.get('primary') or packet['daily'];tf=pr['timeframe']
++    v=review_value({'daily':pr});v['analysis_timeframe']=tf
++    v['weekly_context']=str(CONTEXT_FRAME[tf])+' synthetic context; no period vote'
++    for c in v['conditions'].values():
++        for clause in c['clauses']:clause['timeframe']=tf
++    v['conditions']['invalidate']['clauses'][0]['value']=98
++    if not candidate:
++        v.update(candidate=False,candidate_routes=[],phase='UNCLASSIFIED',cycle='UNCLASSIFIED',phase_segments=[])
++        for e in v['events']:e['disposition']='REJECTED';e['confirmation_indices']=[]
++        v['conditions']={k:{'manual_question':'Synthetic unresolved behavior; not a trading signal','clauses':[]} for k in v['conditions']}
++    return v
++
++
++class CalendarPeriods(unittest.TestCase):
++    def test_month_is_calendar_not_30_days(self):
++        a,b,_=utc_interval(datetime(2024,2,1,tzinfo=UTC),'1M')
++        self.assertEqual((b-a).days,29)
++        self.assertEqual(b,datetime(2024,3,1,tzinfo=UTC))
++    def test_non_leap_february(self):
++        a,b,_=utc_interval(datetime(2025,2,1,tzinfo=UTC),'1M');self.assertEqual((b-a).days,28)
++    def test_december_rolls_year(self):self.assertEqual(next_month(date(2025,12,18)),date(2026,1,1))
++    def test_month_misaligned_rejected(self):
++        with self.assertRaisesRegex(ValueError,'MONTH_ALIGNMENT'):utc_interval(datetime(2026,2,2,tzinfo=UTC),'1M')
++    def test_twelve_hours_not_four(self):
++        a,b,_=utc_interval(datetime(2026,2,1,12,tzinfo=UTC),'12H');self.assertEqual(b-a,timedelta(hours=12))
++        with self.assertRaises(ValueError):utc_interval(datetime(2026,2,1,4,tzinfo=UTC),'12H')
++    def test_month_in_progress_not_final(self):
++        ds=qualified('1M');self.assertEqual(ds['bars'][-1]['closed_at'],'2026-10-01T00:00:00+00:00')
++        self.assertEqual(ds['excluded'][0]['reason'],'NOT_CLOSED_OR_PUBLICATION_DELAY')
++    def test_month_missing_middle_rejected(self):
++        c=capture_frame('1M');c['bars'].pop(10)
++        with self.assertRaisesRegex(NativeError,'SESSION_GAP'):qualify_capture(c,instrument(),{**product()['profile'],'symbol':'SYNTH:UNIT'},as_of=AT)
++    def test_monthly_interval_validates_every_bar(self):
++        ds=qualified('1M');self.assertTrue(all(interval_status(Bar(**b),instrument())=='OK' for b in ds['bars']))
++    def test_wrong_month_duration_rejected(self):
++        bar=Bar(**qualified('1M')['bars'][1]);bar=replace(bar,closed_at=(datetime.fromisoformat(bar.opened_at)+timedelta(days=30)).isoformat(),available_at=AT)
++        self.assertNotEqual(interval_status(bar,instrument()),'OK')
++    def test_12h_missing_middle_rejected(self):
++        c=capture_frame('12H');c['bars'].pop(10)
++        with self.assertRaisesRegex(NativeError,'SESSION_GAP'):qualify_capture(c,instrument(),{**product()['profile'],'symbol':'SYNTH:UNIT'},as_of=AT)
++    def test_month_close_publication_delay(self):
++        self.assertEqual(expected_close(instrument(),'1M','2026-10-01T00:00:30Z'),'2026-09-01T00:00:00+00:00')
++        self.assertEqual(expected_close(instrument(),'1M','2026-10-01T00:01:00Z'),'2026-10-01T00:00:00+00:00')
++    def test_twelve_hour_expected_close(self):
++        self.assertEqual(expected_close(instrument(),'12H',AT),'2026-10-09T12:00:00+00:00')
++    def test_twelve_to_daily_volume(self):self.assertTrue(aggregate_check(qualified('12H'),qualified('1D'),price_tolerance=.001)['ok'])
++    def test_daily_monthly_volume(self):self.assertTrue(aggregate_check(qualified('1D'),qualified('1M'),price_tolerance=.001)['ok'])
++    def test_week_month_not_falsely_added(self):
++        result=aggregate_check(qualified('1W'),qualified('1M'),price_tolerance=.001)
++        self.assertIsNone(result['ok']);self.assertIn('NON_NESTED',result['reason'])
++    def test_bad_monthly_volume_not_hidden(self):
++        m=qualified('1M');m['bars'][-1]['volume']+=100
++        self.assertEqual(aggregate_check(qualified('1D'),m,price_tolerance=.001)['reason'],'DAY_MONTH_VOLUME_MISMATCH')
++    def exchange(self,calendar='XNYS'):
++        import exchange_calendars
++        return replace(instrument(),calendar_id=calendar,calendar_version='exchange_calendars:'+exchange_calendars.__version__,
++                       timezone='America/New_York',session_definition=calendar+':SESSION_OPEN')
++    def test_wednesday_does_not_finalize_exchange_week(self):
++        inst=self.exchange();v=expected_close(inst,'1W','2026-10-07T22:00:00Z')
++        self.assertEqual(v,'2026-10-02T20:00:00+00:00')
++    def test_holiday_week_ends_thursday(self):
++        self.assertEqual(expected_close(self.exchange(),'1W','2026-04-03T22:00:00Z'),'2026-04-02T20:00:00+00:00')
++    def test_current_month_not_final_at_latest_daily_close(self):
++        self.assertEqual(expected_close(self.exchange(),'1M','2026-10-07T22:00:00Z'),'2026-09-30T20:00:00+00:00')
++    def test_month_close_early_session(self):
++        self.assertEqual(expected_close(self.exchange(),'1M','2024-11-29T18:02:00Z'),'2024-11-29T18:00:00+00:00')
++    def test_exchange_month_requires_timestamp_convention(self):
++        with self.assertRaisesRegex(NativeError,'MODE_REQUIRED'):
++            bar_interval(int(datetime(2026,9,1,tzinfo=UTC).timestamp()),'1M',self.exchange(),{})
++    def test_exchange_month_first_session(self):
++        op,cl,label=bar_interval(int(datetime(2026,9,1,tzinfo=UTC).timestamp()),'1M',self.exchange(),{'period_timestamp_modes':{'1M':'UTC_PERIOD_START'}})
++        self.assertEqual(label,'2026-09-01');self.assertEqual(op.isoformat(),'2026-09-01T13:30:00+00:00');self.assertEqual(cl.isoformat(),'2026-09-30T20:00:00+00:00')
++    def test_futures_session_open_previous_month(self):
++        inst=self.exchange('CMES');op,cl,label=period_bounds(inst,'1M',date(2026,6,1))
++        a,b,l=bar_interval(int(op.timestamp()),'1M',inst,{'period_timestamp_modes':{'1M':'SESSION_OPEN'}})
++        self.assertEqual((a,b,l),(op,cl,label));self.assertLess(op.date(),date(2026,6,1))
++
++
++class IndependentPeriods(unittest.TestCase):
++    def test_order_top_down_no_12h_added(self):self.assertEqual(selected_frames({'analysis_timeframes':['4H','1D','1M','1W']}),['1M','1W','1D','4H'])
++    def test_optional_12h_is_separate(self):self.assertNotEqual(track_key('p','12H'),track_key('p','4H'))
++    def test_daily_legacy_key_unchanged(self):self.assertEqual(track_key('p','1D'),'p')
++    def test_month_does_not_duplicate_self_context(self):
++        ds=qualified('1M');p=compact_packet(ds,None,computed(ds),None)
++        self.assertIsNone(p['background']);self.assertIsNone(p['context_timeframe'])
++        self.assertEqual(validate_review(answer(p),p)['analysis_timeframe'],'1M')
++    def test_month_cannot_accept_itself_as_background(self):
++        ds=qualified('1M')
++        with self.assertRaisesRegex(NativeError,'BACKGROUND'):compact_packet(ds,ds,computed(ds),computed(ds))
++    def test_weekly_uses_month_not_day(self):
++        a=qualified('1W');b=qualified('1M');p=compact_packet(a,b,computed(a),computed(b))
++        self.assertEqual(p['context_timeframe'],'1M');self.assertEqual(validate_review(answer(p),p)['analysis_timeframe'],'1W')
++    def test_12h_uses_day(self):
++        a=qualified('12H');b=qualified('1D');p=compact_packet(a,b,computed(a),computed(b))
++        self.assertEqual(validate_review(answer(p),p)['analysis_timeframe'],'12H')
++    def test_month_engine_not_renamed_daily(self):
++        ds=qualified('1M');p=compact_packet(ds,None,computed(ds),None);p['primary']['candidates']['interval']='1d'
++        with self.assertRaisesRegex(NativeError,'ENGINE_INTERVAL'):validate_review(answer(p),p)
++    def test_month_conditions_must_use_month(self):
++        ds=qualified('1M');p=compact_packet(ds,None,computed(ds),None);v=answer(p,True);v['conditions']['entry']['clauses'][0]['timeframe']='1D'
++        with self.assertRaisesRegex(NativeError,'TIMEFRAME_MISMATCH'):validate_review(v,p)
++    def test_month_labels_exact_month(self):
++        ds=qualified('1M');p=compact_packet(ds,None,computed(ds),None);v=validate_review(answer(p),p)
++        m=make_manifest(ds,v,symbol='SYNTH:UNIT',layout_id='SYNTH_LAYOUT',episode_id='M',price_tolerance=.001)
++        self.assertTrue(m['items']);self.assertTrue(all(i['overrides']['intervalsVisibilities']==visibility('1M') for i in m['items']))
++    def test_legacy_revision_budget_accepted_without_rewriting(self):
++        c=template();c['revision_check_seconds']={'1D':86400,'1W':86400,'4H':14400,'1H':3600};before=copy.deepcopy(c)
++        validate_config(c);self.assertEqual(c,before)
++    def test_month_frozen_hypothesis_has_month_budget(self):
++        ds=qualified('1M');p=compact_packet(ds,None,computed(ds),None);v=validate_review(answer(p,True),p)
++        c=template();r=request_for(instrument(),{'1M':ds},v,computed(ds),as_of=AT,config=c,analysis_timeframe='1M')
++        validate_spec(r['spec'],instrument(),datetime.fromisoformat(AT))
++        self.assertIsNone(r['spec']['context_timeframe']);self.assertIn('1M',r['spec']['max_age_hours_by_timeframe'])
++
++
++class PeriodPipeline(unittest.TestCase):
++    def setUp(self):
++        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.ws=Path(self.tmp.name)
++        self.clock=lambda:AT;self.frames=[];self.captures=[];self.fail=set()
++        self.cfg=template();self.cfg.update(enabled=True,write_tv=False,review_model='SYNTHETIC',min_monthly_bars=2,min_weekly_bars=2,min_daily_bars=2,min_4h_bars=2,min_12h_bars=2)
++        p=product();p.update(analysis_timeframes=['1M','1W','1D','4H'],layout_mode='SEQUENTIAL_SAME_PRODUCT',capture_bars={})
++        self.cfg['products']=[p]
++        outer=self
++        class Engine:
++            code_hash='SYNTH_ENGINE_R3'
++            def compute(self,ds,root):return computed(ds)
++        class Review(CodexReviewer):
++            def __init__(self):super().__init__(model='SYNTHETIC')
++            def _execute(self,p,r,schema,prompt):
++                outer.frames.append(p['primary_timeframe']);return answer(p),{'origin':'SYNTHETIC_MODEL'}
++        class Chart:
++            def connect(self):return self
++            def close(self):pass
++            def capture(self,symbol,tf,**kw):
++                outer.captures.append(tf)
++                if tf in outer.fail:raise NativeError('SYNTHETIC_CAPTURE_FAILURE:'+tf)
++                return capture_frame(tf,count=kw['count'])
++        self.engine=Engine();self.reviewer=Review();self.factory=lambda p:Chart()
++    def runone(self):return run_once(self.ws,self.cfg,engine=self.engine,reviewer=self.reviewer,tv_factory=self.factory,clock=self.clock)
++    def test_all_four_independent_without_candidate(self):
++        r=self.runone();self.assertEqual(r['state'],'COMPLETED',r);self.assertEqual(self.frames,['1M','1W','1D','4H'])
++        records=[e for e in EventStore(self.ws/'archive').events() if e['kind']=='TV11_MAIN_RECORD']
++        self.assertEqual(len(records),4);self.assertEqual(len(set(e['payload']['track_id'] for e in records)),4)
++    def test_shared_capture_once_per_frame(self):
++        self.runone();self.assertEqual(Counter(self.captures),{'1M':1,'1W':1,'1D':1,'4H':1})
++    def test_month_failure_keeps_weekly_and_lower(self):
++        self.fail={'1M'};r=self.runone();self.assertEqual(r['state'],'PARTIAL',r);self.assertEqual(self.frames,['1W','1D','4H'])
++    def test_repeat_same_state_no_new_research(self):
++        self.runone();n=len(self.frames);r=self.runone();self.assertEqual(r['state'],'IDLE',r);self.assertEqual(len(self.frames),n)
++    def test_12h_not_silently_enabled(self):self.runone();self.assertNotIn('12H',self.frames)
++    def test_12h_explicit_independent(self):
++        self.cfg['products'][0]['analysis_timeframes'].append('12H');r=self.runone()
++        self.assertEqual(r['state'],'COMPLETED',r);self.assertEqual(self.frames,['1M','1W','1D','12H','4H'])
++    def test_no_null_period_key_in_frozen_data(self):
++        self.runone();st=EventStore(self.ws/'archive');ev=next(e for e in reversed(st.events()) if e['kind']=='NATIVE_RUNTIME_STATE');s=st.read_snapshot(ev['payload']['state_sha256'])
++        for value in s.values():
++            if isinstance(value,dict) and value.get('datasets_sha256'):
++                ds=st.read_snapshot(value['datasets_sha256']);self.assertNotIn('null',ds)
++
++
++if __name__=='__main__':unittest.main()

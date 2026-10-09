@@ -1,0 +1,414 @@
++事件档案的完整性核验与模型检索分开：底层可能核对所有存档哈希；只有主记录白名单内容会传给这个主研究上下文入口。文件安全检查和原生异步行为仍有各自边界；不以“通过很多测试”声称任意攻击或正常视野都已验证。
++
++## 五、部署边界
++
++同一产品需要共用已保存布局时须显式配置 `layout_mode: SEQUENTIAL_SAME_PRODUCT`；不同产品不能凭同一布局混写。修复包的只读源码预检会核对完整基线及候选文件清单；任何不认识的本机补丁、内部软链接或混合版本均不授权覆盖。重建工具仅在临时目录把精确历史基线变为候选ZIP，并检查全部变化及未改文件；它不是安装器，不操作用户TV、Vault、调度或现有Skill。
++
++开发、修复、三书依据整理、测试、兼容合并和最终更新包由开发交付方继续完成。Codex最终只执行拉取指定发行提交、备份、原位更新、必要配置和实机验收；验收失败回传证据，不现场补代码。当前版本不输出可直接安装指令。
+--- a/schemas/native_price_reviewer.schema.json
++++ b/schemas/native_price_reviewer.schema.json
+@@ -209,8 +209,10 @@
+                   "timeframe": {
+                     "type": "string",
+                     "enum": [
++                      "1M",
++                      "1W",
+                       "1D",
+-                      "1W",
++                      "12H",
+                       "4H",
+                       "1H"
+                     ]
+@@ -276,8 +278,10 @@
+                   "timeframe": {
+                     "type": "string",
+                     "enum": [
++                      "1M",
++                      "1W",
+                       "1D",
+-                      "1W",
++                      "12H",
+                       "4H",
+                       "1H"
+                     ]
+@@ -343,8 +347,10 @@
+                   "timeframe": {
+                     "type": "string",
+                     "enum": [
++                      "1M",
++                      "1W",
+                       "1D",
+-                      "1W",
++                      "12H",
+                       "4H",
+                       "1H"
+                     ]
+@@ -410,8 +416,10 @@
+                   "timeframe": {
+                     "type": "string",
+                     "enum": [
++                      "1M",
++                      "1W",
+                       "1D",
+-                      "1W",
++                      "12H",
+                       "4H",
+                       "1H"
+                     ]
+@@ -535,7 +543,10 @@
+     "analysis_timeframe": {
+       "type": "string",
+       "enum": [
++        "1M",
++        "1W",
+         "1D",
++        "12H",
+         "4H"
+       ]
+     },
+--- a/schemas/native_reviewer.schema.json
++++ b/schemas/native_reviewer.schema.json
+@@ -209,8 +209,10 @@
+                   "timeframe": {
+                     "type": "string",
+                     "enum": [
++                      "1M",
++                      "1W",
+                       "1D",
+-                      "1W",
++                      "12H",
+                       "4H",
+                       "1H"
+                     ]
+@@ -276,8 +278,10 @@
+                   "timeframe": {
+                     "type": "string",
+                     "enum": [
++                      "1M",
++                      "1W",
+                       "1D",
+-                      "1W",
++                      "12H",
+                       "4H",
+                       "1H"
+                     ]
+@@ -343,8 +347,10 @@
+                   "timeframe": {
+                     "type": "string",
+                     "enum": [
++                      "1M",
++                      "1W",
+                       "1D",
+-                      "1W",
++                      "12H",
+                       "4H",
+                       "1H"
+                     ]
+@@ -410,8 +416,10 @@
+                   "timeframe": {
+                     "type": "string",
+                     "enum": [
++                      "1M",
++                      "1W",
+                       "1D",
+-                      "1W",
++                      "12H",
+                       "4H",
+                       "1H"
+                     ]
+@@ -535,7 +543,10 @@
+     "analysis_timeframe": {
+       "type": "string",
+       "enum": [
++        "1M",
++        "1W",
+         "1D",
++        "12H",
+         "4H"
+       ]
+     },
+--- a/schemas/opportunity_bar.schema.json
++++ b/schemas/opportunity_bar.schema.json
+@@ -28,8 +28,10 @@
+     },
+     "timeframe": {
+       "enum": [
++        "1M",
++        "1W",
+         "1D",
+-        "1W",
++        "12H",
+         "4H",
+         "1H"
+       ]
+--- a/schemas/opportunity_condition.schema.json
++++ b/schemas/opportunity_condition.schema.json
+@@ -61,8 +61,10 @@
+             },
+             "timeframe": {
+               "enum": [
++                "1M",
++                "1W",
+                 "1D",
+-                "1W",
++                "12H",
+                 "4H",
+                 "1H"
+               ]
+--- a/schemas/opportunity_hypothesis.schema.json
++++ b/schemas/opportunity_hypothesis.schema.json
+@@ -61,8 +61,10 @@
+             },
+             "timeframe": {
+               "enum": [
++                "1M",
++                "1W",
+                 "1D",
+-                "1W",
++                "12H",
+                 "4H",
+                 "1H"
+               ]
+@@ -263,15 +265,23 @@
+     "analysis_timeframe": {
+       "type": "string",
+       "enum": [
++        "1M",
++        "1W",
+         "1D",
++        "12H",
+         "4H"
+       ]
+     },
+     "context_timeframe": {
+-      "type": "string",
++      "type": [
++        "string",
++        "null"
++      ],
+       "enum": [
+-        "1D",
+-        "1W"
++        null,
++        "1M",
++        "1W",
++        "1D"
+       ]
+     },
+     "min_structure_bars": {
+@@ -288,7 +298,7 @@
+         ],
+         "properties": {
+           "analysis_timeframe": {
+-            "const": "1D"
++            "const": "1M"
+           }
+         }
+       },
+@@ -299,10 +309,88 @@
+         ],
+         "properties": {
+           "condition_timeframe": {
++            "const": "1M"
++          },
++          "context_timeframe": {
++            "const": null
++          }
++        }
++      }
++    },
++    {
++      "if": {
++        "required": [
++          "analysis_timeframe"
++        ],
++        "properties": {
++          "analysis_timeframe": {
++            "const": "1W"
++          }
++        }
++      },
++      "then": {
++        "required": [
++          "context_timeframe",
++          "min_structure_bars"
++        ],
++        "properties": {
++          "condition_timeframe": {
++            "const": "1W"
++          },
++          "context_timeframe": {
++            "const": "1M"
++          }
++        }
++      }
++    },
++    {
++      "if": {
++        "required": [
++          "analysis_timeframe"
++        ],
++        "properties": {
++          "analysis_timeframe": {
++            "const": "1D"
++          }
++        }
++      },
++      "then": {
++        "required": [
++          "context_timeframe",
++          "min_structure_bars"
++        ],
++        "properties": {
++          "condition_timeframe": {
+             "const": "1D"
+           },
+           "context_timeframe": {
+             "const": "1W"
++          }
++        }
++      }
++    },
++    {
++      "if": {
++        "required": [
++          "analysis_timeframe"
++        ],
++        "properties": {
++          "analysis_timeframe": {
++            "const": "12H"
++          }
++        }
++      },
++      "then": {
++        "required": [
++          "context_timeframe",
++          "min_structure_bars"
++        ],
++        "properties": {
++          "condition_timeframe": {
++            "const": "12H"
++          },
++          "context_timeframe": {
++            "const": "1D"
+           }
+         }
+       }
+--- a/schemas/opportunity_input.schema.json
++++ b/schemas/opportunity_input.schema.json
+@@ -61,8 +61,10 @@
+             },
+             "timeframe": {
+               "enum": [
++                "1M",
++                "1W",
+                 "1D",
+-                "1W",
++                "12H",
+                 "4H",
+                 "1H"
+               ]
+@@ -580,8 +582,10 @@
+           },
+           "timeframe": {
+             "enum": [
++              "1M",
++              "1W",
+               "1D",
+-              "1W",
++              "12H",
+               "4H",
+               "1H"
+             ]
+--- a/src/global_market_intelligence/opportunities/contracts.py
++++ b/src/global_market_intelligence/opportunities/contracts.py
+@@ -14,7 +14,8 @@
+ 
+ from ..market_integrity import finite, timestamp
+ 
+-TIMEFRAMES = {'1D', '1W', '4H', '1H'}
++LEGACY_TIMEFRAMES = {'1D', '1W', '4H', '1H'}
++TIMEFRAMES = LEGACY_TIMEFRAMES | {'1M', '12H'}
+ DIRECTIONS = {'LONG_OBSERVATION', 'DISTRIBUTION_RISK'}
+ LEVELS = {'OBSERVE', 'FOCUS', 'READY_FOR_HUMAN', 'INVALIDATED', 'EXPIRED', 'CANCELLED'}
+ TERMINAL = {'INVALIDATED', 'EXPIRED', 'CANCELLED'}
+@@ -208,7 +209,9 @@
+         raise ValueError('minimum daily history must be explicit and at least two bars')
+     if not numeric(spec['max_daily_age_hours']) or spec['max_daily_age_hours'] <= 0:
+         raise ValueError('positive freshness limit required')
+-    if set(spec['max_age_hours_by_timeframe']) != TIMEFRAMES or any(
++    budgets = set(spec['max_age_hours_by_timeframe'])
++    if (not LEGACY_TIMEFRAMES <= budgets or not budgets <= TIMEFRAMES
++            or spec['condition_timeframe'] not in budgets) or any(
+             not numeric(v) or v <= 0 for v in spec['max_age_hours_by_timeframe'].values()):
+         raise ValueError('all timeframe freshness budgets must be frozen')
+     if 'analysis_timeframe' in spec:
+--- a/src/global_market_intelligence/opportunities/monitor.py
++++ b/src/global_market_intelligence/opportunities/monitor.py
+@@ -5,7 +5,7 @@
+ from datetime import datetime
+ from typing import Any
+ from ..market_integrity import timestamp
+-from .contracts import Instrument, Bar, digest, validate_spec, TERMINAL
++from .contracts import Instrument, Bar, digest, validate_spec, TERMINAL, TIMEFRAMES
+ from .conditions import evaluate, UNKNOWN
+ from .store import EventStore
+ from .plans import resolve_plan, assess_plan
+@@ -179,7 +179,7 @@
+         # For an historical step, hindsight captures acquired later are NOT
+         # treated as available then. Such steps are flagged retrospective below.
+         grouped={tf:[b for b in usable if b.timeframe==tf and timestamp(b.closed_at)<=cutoff]
+-                 for tf in {'1D','1W','4H','1H'}}
++                 for tf in TIMEFRAMES}
+         return {key:evaluate(tree,grouped,legacy_volume=spec['versions'].get('rules')!='EXISTING_ENGINE+NATIVE_EVIDENCE_V2') for key,tree in spec['conditions'].items()}
+     current=trees(at)
+     if level not in TERMINAL and health=='OK':
+--- a/src/global_market_intelligence/opportunities/native/cache.py
++++ b/src/global_market_intelligence/opportunities/native/cache.py
+@@ -6,20 +6,31 @@
+ """
+ from __future__ import annotations
+ from datetime import timedelta
++from pathlib import Path
+ from ..contracts import Instrument, Bar, digest
+ from ...market_integrity import timestamp
+ from .scheduling import expected_close, data_key
+ 
+-DEFAULT_REVISION_SECONDS = {'1D': 86400, '1W': 86400, '4H': 14400, '1H': 3600}
++DEFAULT_REVISION_SECONDS = {'1M': 86400, '1W': 86400, '1D': 86400, '12H': 43200, '4H': 14400, '1H': 3600}
++
++
++def qualification_code_signature():
++    """Calendar and acquisition changes invalidate qualified snapshots as well."""
++    here=Path(__file__).resolve().parent
++    paths=[here/name for name in ('data.py','cache.py','scheduling.py')]
++    paths += [here.parent/name for name in ('periods_v11.py','timeframes.py','sessions.py','contracts.py')]
++    return digest({p.relative_to(here.parent).as_posix():p.read_text(encoding='utf-8') for p in paths})
+ 
+ 
+ def capture_signature(product, config):
+-    return digest({'instrument': product['instrument'], 'profile': product['profile'],
++    return digest({'qualification_code': qualification_code_signature(), 'instrument': product['instrument'], 'profile': product['profile'],
+                    'capture_bars': product.get('capture_bars', {}),
+                    'min_daily_bars': config.get('min_daily_bars', 200),
+                    'min_4h_bars': config.get('min_4h_bars', 200),
+                    'analysis_timeframe': product.get('analysis_timeframe','1D'),
+                    'min_weekly_bars': config.get('min_weekly_bars', 100),
++                   'min_monthly_bars': config.get('min_monthly_bars', 24),
++                   'min_12h_bars': config.get('min_12h_bars', 200),
+                    'scan_layout': config.get('scan_layout'), 'layout_id': product.get('layout_id')})
+ 
+ 
+--- a/src/global_market_intelligence/opportunities/native/cli.py
++++ b/src/global_market_intelligence/opportunities/native/cli.py
+@@ -13,7 +13,7 @@
+ from ..workflow import workspace_path
+ from ..cli import write_json
+ from ..contracts import Instrument
+-from ..timeframes import selected_frames, tracks, track_key
++from ..timeframes import selected_frames, tracks, track_key, RESEARCH_FRAMES, CAPTURE_DEPTHS
+ from .pipeline import run_once, utcnow, validate_config
+ from .engine import find_engine, WyckoffEngine, run_process
+ from .tradingview import TradingView, NativeError
+@@ -22,9 +22,10 @@
+ def template():

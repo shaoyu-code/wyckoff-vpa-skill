@@ -1,0 +1,160 @@
+-                try:weekly=acquire(context_tf,config.get('min_weekly_bars',100) if context_tf=='1W' else config.get('min_daily_bars',200),260 if context_tf=='1W' else 750)
+-                except (ValueError,KeyError,NativeError) as e:
+-                    weekly=None;weekly_error=str(e)
+-                    checkpoints[context_tf]={'checked_at':clock(),'failure_retry_at':(timestamp(clock())+timedelta(seconds=300)).isoformat(),'failure_reason':str(e)}
++                stage='CONTEXT_CAPTURE';weekly_error=None
++                if context_tf is not None:
++                    weekly_error=checkpoints.get(context_tf,{}).get('failure_reason') if due_frames[context_tf][1]=='OPTIONAL_WEEKLY_UNAVAILABLE_RETRY_PENDING' else None
++                    try:weekly=acquire(context_tf,minimum_bars(config,context_tf),CAPTURE_DEPTHS[context_tf])
++                    except (ValueError,KeyError,NativeError) as e:
++                        weekly=None;weekly_error=str(e)
++                        checkpoints[context_tf]={'checked_at':clock(),'failure_retry_at':(timestamp(clock())+timedelta(seconds=300)).isoformat(),'failure_reason':str(e)}
+                 tf=expected_tf;tactical=None
+                 if tf!=primary_tf:tactical=acquire(tf,3,240)
+                 stage='ENGINE'
+@@ -351,17 +363,21 @@
+                 if weekly:
+                     try:we=compute_frame(weekly,wk,old.get('weekly_engine'),old.get('weekly_key'),context_tf)
+                     except Exception as e:weekly_error='CONTEXT_ENGINE_FAILED:'+str(e)
++                checked={'ok':None,'reason':'NO_HIGHER_CONFIGURED_CONTEXT','periods_checked':0}
+                 if weekly:
+                     checked=aggregate_check(daily,weekly,price_tolerance=product['price_tolerance'])
+-                    if not checked['ok']:weekly_error=checked['reason'];we=None
++                    if checked['ok'] is False:weekly_error=checked['reason'];we=None
+                 append(store,'NATIVE_ENGINE','native-engine:'+tid,{'primary_timeframe':primary_tf,'context_timeframe':context_tf,'daily':de,'weekly':we},clock())
+                 if not de['eligible']:raise NativeError(primary_tf+'_ENGINE_DATA_INELIGIBLE:'+str(de['candidate'].get('data_quality')))
+                 if we and not we['eligible']:weekly_error=context_tf+'_ENGINE_INELIGIBLE';we=None
+                 packet=compact_packet(daily,weekly if we else None,de,we,original_spec=original['spec'] if original else None,
+                     fundamentals=docs if not hasattr(reviewer,'review_supply') else None,
+                     fundamental_summary=supply_summary(supply_value,docs,supply_error) if hasattr(reviewer,'review_supply') else None)
++                packet['previous_main_research']=[r for r in main_context(store,track_id=tid,as_of=clock())
++                    if timestamp(r['data_cutoff'])<timestamp(daily['bars'][-1]['closed_at'])]
+                 packet['weekly_error']=weekly_error
+                 packet['context_error']=weekly_error
++                packet['context_comparison']=checked
+                 stage='REVIEW'
+                 key=digest({'packet':{k:v for k,v in packet.items() if k!='original_spec'},'reviewer':getattr(reviewer,'model',None),'analysis_signature':analysis_signature,'prompt_version':PROMPT_VERSION})
+                 if old.get('review_key')==key and old.get('structure_interpretation'):
+@@ -370,8 +386,14 @@
+                     interpretation=reviewer.review(packet,run/'review');review_executed=True
+                     append(store,'NATIVE_RESEARCH','native-research:'+tid,{'packet':packet,'interpretation':interpretation},clock())
+                 structure_interpretation=deepcopy(interpretation)
++                # No-opportunity is still a research result. Freeze before any
++                # native delivery; do not manufacture a forecast to obtain a chart.
++                freeze_main_record(store,daily,structure_interpretation,at=clock(),
++                    model_version=getattr(reviewer,'model',None) or config.get('review_model') or 'UNDECLARED',track_id=tid)
+                 interpretation=merge_supply(interpretation,supply_value)
+-                ds={primary_tf:daily,context_tf:weekly};ds.update({tf:tactical} if tactical else {})
++                ds={primary_tf:daily}
++                if context_tf is not None:ds[context_tf]=weekly
++                ds.update({tf:tactical} if tactical else {})
+                 scans.append({'instrument_id':pid,'analysis_timeframe':primary_tf,'route':'STRUCTURE','status':'SCANNED_CANDIDATE' if 'STRUCTURE' in interpretation['candidate_routes'] else 'SCANNED_NO_OPPORTUNITY',
+                     'evidence_refs':[de['candidate_sha256']],'reason':interpretation['summary']})
+                 if product.get('supply_evidence_files'):
+@@ -386,12 +408,14 @@
+                     req=request_for(inst,ds,interpretation,de,as_of=clock(),config=config,original=original,documents=docs,analysis_timeframe=primary_tf)
+                     request_batch.append(req)
+                     planned.append((product,daily,interpretation,req,run))
++                else:
++                    read_only_planned.append((product,daily,interpretation,run))
+                 record={'instrument_id':pid,'analysis_timeframe':primary_tf,'track_id':tid,'symbol':product['symbol'],'status':'SCANNED','as_of':clock(),
+-                    'latest_daily':daily['bars'][-1]['closed_at'] if primary_tf=='1D' else (weekly['bars'][-1]['closed_at'] if weekly else None),
++                    'latest_daily':ds['1D']['bars'][-1]['closed_at'] if ds.get('1D') else None,
+                     'latest_structure':daily['bars'][-1]['closed_at'],'context_timeframe':context_tf,'weekly_error':weekly_error,'supply_error':supply_error,
+                     'capture_decisions':{k:{'acquired':v[0],'reason':v[1]} for k,v in due_frames.items()},
+                     'review_scope':packet.get('review_scope','LEGACY_COMBINED_REVIEW_COMPATIBILITY'),
+-                    'review_executed':review_executed,'acquisitions':acquisition_counts,'tv_delivery':('PENDING' if config['write_tv'] else 'DISABLED') if interpretation['candidate'] or original else 'NOT_REQUIRED'}
++                    'review_executed':review_executed,'acquisitions':acquisition_counts,'tv_delivery':('PENDING' if config['write_tv'] else 'DISABLED'),'research_only':not bool(interpretation['candidate'] or original)}
+                 state[tid]={'raw_key':rawkey,'review_key':key,'interpretation':interpretation,'structure_interpretation':structure_interpretation,'last_check':record['as_of'],
+                     'daily_key':dk,'weekly_key':wk,'daily_engine':de,'weekly_engine':we,'engine_identity':engine_identity,
+                     'last_price_close':(tactical or daily)['bars'][-1]['closed_at'],'completed':False,'failure_count':old.get('failure_count',0),
+@@ -448,7 +472,7 @@
+             row=next((r for r in reversed(assessed_rows) if same_track(r,pid,primary_tf)),None)
+             if not row or row['as_of']!=req['as_of']:continue
+             ds=store.read_snapshot(state[tid]['datasets_sha256'])
+-            for tf in (('4H','1H') if primary_tf=='1D' else ('1H',)):
++            for tf in ADVISORY_FRAMES[primary_tf]:
+                 if ds.get(tf):
+                     receipt['material_changes'].extend(observe(store,row,req,ds[tf],
+                         policy=config.get('observation_policy',DEFAULT_POLICY),at=clock()))
+@@ -456,6 +480,7 @@
+         # historical WORKFLOW_CHECK -> outbox interruption as well.
+         notice_created=enqueue_notices(store,receipt['material_changes'],at=clock(),desktop=config.get('notify_desktop',False))
+         assessments=latest_assessments(store,as_of=clock())
++        render_jobs=[]
+         for product,daily,interpretation,req,run in planned:
+             pid=Instrument(**product['instrument']).identity
+             primary_tf=product['analysis_timeframe'];tid=track_key(pid,primary_tf)
+@@ -464,6 +489,16 @@
+                 status=next(r for r in results if same_track(r,pid,primary_tf))
+                 status.update(status='FAILED',stage='ARCHIVE',error='Native assessment not committed',tv_delivery='NOT_RUN')
+                 append(store,'NATIVE_PRODUCT_STATUS','native-status:'+tid,status,clock());continue
++            render_jobs.append((product,daily,interpretation,req,run,row))
++        for product,daily,interpretation,run in read_only_planned:
++            pid=Instrument(**product['instrument']).identity;primary_tf=product['analysis_timeframe']
++            conditions=deepcopy(interpretation['condition_trees'])
++            conditions['entry']={'op':'manual','question':'仅结构观察，没有确认可评估开仓的机会。'}
++            req={'spec':{'conditions':conditions}}
++            row={'episode_id':'research-only-'+track_key(pid,primary_tf),'level':'OBSERVE','data_health':'OK'}
++            render_jobs.append((product,daily,interpretation,req,run,row))
++        for product,daily,interpretation,req,run,row in render_jobs:
++            pid=Instrument(**product['instrument']).identity;primary_tf=product['analysis_timeframe'];tid=track_key(pid,primary_tf)
+             status=next(r for r in results if same_track(r,pid,primary_tf))
+             if not config['write_tv']:continue
+             if not product.get('layout_id'):
+@@ -476,8 +511,14 @@
+                 manifest=make_manifest(daily,interpretation,symbol=product['symbol'],layout_id=product['layout_id'],
+                     episode_id=row['episode_id'],price_tolerance=product['price_tolerance'],conditions={**req['spec']['conditions'],**row.get('monitoring_plan',{}).get('conditions',{})} if row.get('monitoring_plan') else req['spec']['conditions'],level=row['level'],data_health=row['data_health'],viewport=product.get('drawing_viewport'))
+                 from .evidence_v11 import freeze_research
++                tv=tv_factory(product);tv.connect()
++                if hasattr(tv,'prepare_manifest'):
++                    if product.get('drawing_viewport'):
++                        raise NativeError('STATIC_VIEWPORT_NOT_ACCEPTED_FOR_NEW_NATIVE_DELIVERY')
++                    manifest=tv.prepare_manifest(manifest,daily)
++                # Includes measured viewport and bound target, rather than freezing
++                # one plan then silently drawing a different layout.
+                 manifest=freeze_research(store,daily,interpretation,manifest,at=clock())
+-                tv=tv_factory(product);tv.connect()
+                 delivery=tv.deliver(manifest,store=store,at=clock(),evidence_dir=run/'tv')
+                 status['tv_delivery']=delivery['status']
+                 status['visual_acceptance']=delivery.get('visual_acceptance','NOT_REPORTED')
+@@ -526,6 +567,7 @@
+ 
+ def checkpoint_review(store,workspace: Path,at: str,config: dict):
+     """Runs even on no-new-candle days; one queue, not a second learning system."""
++    if config.get('journal',{}).get('enabled'):return
+     previous=next((e for e in reversed(store.events()) if e['kind']=='NATIVE_REVIEW_CHECKPOINT'),None)
+     if previous and timestamp(at)-timestamp(previous['recorded_at'])<timedelta(days=config.get('review_period_days',14)):return
+     case=archive_review(store,as_of=at);path=workspace/'reviews'/('review-'+timestamp(at).date().isoformat()+'.json')
+@@ -553,4 +595,11 @@
+     """One serialized run. Files and state cannot race another manual/daemon run."""
+     ws=workspace_path(workspace);ws.mkdir(parents=True,exist_ok=True)
+     with desktop_lock(ws/'.native-run.lock'):
+-        return _run_once(ws,config,engine=engine,reviewer=reviewer,tv_factory=tv_factory,clock=clock)
++        result=_run_once(ws,config,engine=engine,reviewer=reviewer,tv_factory=tv_factory,clock=clock)
++        journal=journal_checkpoint(EventStore(ws/'archive'),config,as_of=clock(),invocation=result)
++        result['journal']=journal
++        from .scope_v11 import scope_report
++        result['scope']=scope_report(config)
++        if journal['status'] in {'FAILED','PARTIAL'}:result['state']='PARTIAL'
++        write_json(ws/'last_invocation.json',result)
++        return result
+--- a/src/global_market_intelligence/opportunities/native/reviewer.py
++++ b/src/global_market_intelligence/opportunities/native/reviewer.py
+@@ -11,17 +11,17 @@
+ from .engine import run_process
+ from .tradingview import NativeError
+ 
+-PROMPT_VERSION='gmi-native-wyckoff-review-tv11-evidence-1'
++PROMPT_VERSION='gmi-native-wyckoff-review-tv11-multiperiod-3'
+ from .evidence_v11 import audit_window, reviewed_comparisons, instant
+ from .book_rules_v11 import packet_rules, validate_rule_bindings
+-from ..timeframes import CONTEXT_FRAME
++from ..timeframes import CONTEXT_FRAME, RESEARCH_FRAMES, ENGINE_INTERVALS
+ from .semantics import event_proof, validate_phase_geometry, validate_entry_clauses
+ EVENTS={'PS','SC','AR','ST','BC','UT','UTAD','SPRING','TEST_AFTER_SPRING','TEST_AFTER_UT','SOS','SOW','LPS','LPSY','EFFORT_NO_RESULT','CLIMAX'}
+ 
+ def obj(properties):return {'type':'object','properties':properties,'required':list(properties),'additionalProperties':False}
+ def arr(item):return {'type':'array','items':item}
+ S={'type':'string'};I={'type':'integer'};N={'type':'number'}
+-CLAUSE=obj({'timeframe':{'type':'string','enum':['1D','1W','4H','1H']},'indicator':{'type':'string','enum':['close','high','low','relative_volume','volume']},

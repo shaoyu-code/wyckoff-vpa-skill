@@ -1,0 +1,322 @@
+{
+  "artifact_kind": "R2_R3_SOURCE_DELTA_FROM_PUBLISHED_R1_NOT_INSTALLER",
+  "published_r1_commit": "49734456a8529ce3a931915be7db0e91d5079ccb",
+  "baseline_zip_sha256": "60cf79cb04f58a3cbc58f17c08a9c229a9d24837aa20b66ae61b83d92f935ad4",
+  "r1_source_fingerprint": "c7520991592696f5c7f4e6522a3bb678588179e0d71f5fddb7968f88720b7dc1",
+  "r3_source_fingerprint": "96acd05fdfb55d6a981361ab645cf9e07535f5329330ee1e9531a37a7945af2e",
+  "r1_builder_sha256": "b1c342355d431a35d939d05304bc2ed6576c74c6b9207a1c8e7e442ecf7454c0",
+  "patch_sha256": "f9a4c0f1c7fc2fd020d822ac6f505bdbd5bfd40cbb44030c9487d21a6f7a34a4",
+  "parts": [
+    {
+      "path": "parts/01.patchpart",
+      "bytes": 21841,
+      "sha256": "5f2c337b8f6503ec84d4422e856866e8c920980be7e25370251e5ee37b29a9b6",
+      "git_blob": "cd183c2511d4ce4209993ff71d4e02d38100e5a5"
+    },
+    {
+      "path": "parts/02.patchpart",
+      "bytes": 13443,
+      "sha256": "9fadf35195b59f71b60584afaf8df382bfd800d329cb6160e598d931da1cf598",
+      "git_blob": "69d8abd7b683b2b4967d120cb2b66a3d2bd3890a"
+    },
+    {
+      "path": "parts/03.patchpart",
+      "bytes": 13475,
+      "sha256": "621593a08afd3a8fceb12b8a7c730ea6f11bac6cbb3bcc26fcd74468d5d50015",
+      "git_blob": "9ee1af987373318ae1d27eb39e8ff77c91f29dab"
+    },
+    {
+      "path": "parts/04.patchpart",
+      "bytes": 13471,
+      "sha256": "52d10ea319468829bf37d48a6a709058c0c0e75b66936eaf99d77d99ca7c5e3a",
+      "git_blob": "817c00edf22b7f8aed27affe4a45e6270b1fb844"
+    },
+    {
+      "path": "parts/05.patchpart",
+      "bytes": 13437,
+      "sha256": "bd8e8844afe0979aa2bb148ff26fcb8a9478a050efddeb86083cc64cfce41067",
+      "git_blob": "5e74e68a3e801f18d2ba5c56318edb50c2201a67"
+    },
+    {
+      "path": "parts/06.patchpart",
+      "bytes": 13484,
+      "sha256": "9078bbe3bf836f9708f922a0e0b4d9de8db5f7bdab1391364a42b9f6288a8f29",
+      "git_blob": "8f48e28b2b0efd8c656462e56d5831b83290accd"
+    },
+    {
+      "path": "parts/07.patchpart",
+      "bytes": 13431,
+      "sha256": "170beccfba249c61634618dd3adbbe730f37d9970a7f7af1f4651c83943ec663",
+      "git_blob": "277e92d8695a7176c713411b94cac75dda5e8af3"
+    },
+    {
+      "path": "parts/08.patchpart",
+      "bytes": 13348,
+      "sha256": "fa82c36995e0d4cd7ce118806d2c3691a1d6a9eee1df5c61bcbf4fccd21b7fc8",
+      "git_blob": "e3ae1bf8e5dc8917393ddd788db930ae0c3a6d58"
+    },
+    {
+      "path": "parts/09.patchpart",
+      "bytes": 13450,
+      "sha256": "317dbe82eba6a8da415b7a32fb11880634c1ce392de8b9d45437bb4be7b41dc8",
+      "git_blob": "03bdbf9c1a578474a5db9dab9dca97f961430904"
+    },
+    {
+      "path": "parts/10.patchpart",
+      "bytes": 13412,
+      "sha256": "e48a5c4d1fa3736f86379d43f01e674445d124b4aff909adc1702ca54163d0ec",
+      "git_blob": "c7ce473c7a1b3eb08c6f3b3fe2176c1c01864e0c"
+    },
+    {
+      "path": "parts/11.patchpart",
+      "bytes": 13456,
+      "sha256": "82df794c44dd3a472878f4b0f92e4c303052609dff482adadf03f86eb0fe84e0",
+      "git_blob": "913bcbba4432d78e2b21f0da5211f3f110415a0c"
+    },
+    {
+      "path": "parts/12.patchpart",
+      "bytes": 13482,
+      "sha256": "416059c331fcb5a34c3b9c1bdae58287c5e54b42e07197e2c46374e4e217907b",
+      "git_blob": "458b269648336903daec93b0be7111f307b2242c"
+    },
+    {
+      "path": "parts/13.patchpart",
+      "bytes": 13473,
+      "sha256": "4e5bb22bbd294cfb17be617ffcb8407987455ceb0fbd1de67ad6764191726547",
+      "git_blob": "8899755ff1dc879e8883fb8859dd77def7cc1c1d"
+    },
+    {
+      "path": "parts/14.patchpart",
+      "bytes": 13468,
+      "sha256": "8530286d50a32393720cc58f8111c70aab6ea65de2013a51b76a5f64b112bece",
+      "git_blob": "85661fc11dbf5cdcf427b0227b5d224063060ccf"
+    },
+    {
+      "path": "parts/15.patchpart",
+      "bytes": 13488,
+      "sha256": "b563b46de8d1047734f36fb89ec6a43901ad2957f847414e09d46a0f880b387f",
+      "git_blob": "3d27077c2ff65c51cb4155cc5df966c58ba29dc0"
+    },
+    {
+      "path": "parts/16.patchpart",
+      "bytes": 13489,
+      "sha256": "3f2c4614daaf2d1d6fcb9e847f8e7c98862bc151e765af2c9b75e148f67a1062",
+      "git_blob": "b57195d8ebb5bc6995d10a26bb2e9c982cfd62fe"
+    },
+    {
+      "path": "parts/17.patchpart",
+      "bytes": 12784,
+      "sha256": "f4c545f590b4864457739068e6d1fea99d9b34e7f3707d6bef3ba474de4321ac",
+      "git_blob": "d2bd65a52578f8a4edf24530ecdc482cceec4b1d"
+    }
+  ],
+  "files": [
+    {
+      "path": "SKILL.md",
+      "before_sha256": "6ed5749afdeb483378ccc1cda209cedeb7ba83c75918e0eb76e1276114fd4d64",
+      "after_sha256": "5a1e153b4f5c0f0c9161ead12a890df3494295027147ac8e0a61b0042f4544cb"
+    },
+    {
+      "path": "TV11_CANDIDATE.json",
+      "before_sha256": null,
+      "after_sha256": "dce2a618322dec0302ebcc3646fe9d1f3f2cf223a6c1770169187b6408f1e845"
+    },
+    {
+      "path": "TV11_CANDIDATE_GUIDE.zh-CN.md",
+      "before_sha256": null,
+      "after_sha256": "30110df3786fb44442697fe9a40b22cb71cc041b7d97e41fc4ff5413f3f1e48a"
+    },
+    {
+      "path": "schemas/native_price_reviewer.schema.json",
+      "before_sha256": "a14a5bd90c78c24a8339d0d1278dd226d0e9a3de433cd6a2a81edaa5bed905fa",
+      "after_sha256": "638152420a1f80aad87e810e97922c4f67d78711dddc2cf5437da64576b0df47"
+    },
+    {
+      "path": "schemas/native_reviewer.schema.json",
+      "before_sha256": "06b4e1a555f8f80e69775fd9aad3ce14c5739303f16f684ff9c22ce802fec34d",
+      "after_sha256": "64d7a3491795621ec66c98d3a5cd49d33a823fedbab55977954afd7da90468a7"
+    },
+    {
+      "path": "schemas/opportunity_bar.schema.json",
+      "before_sha256": "6f7b97a7e3ccab8dcfde249d6b643ff1fedae5393317bf00bed44ba838afaa68",
+      "after_sha256": "071327010e6f9ca2bb23343d849c0f57423489f169cb795a41697e0e59c686c8"
+    },
+    {
+      "path": "schemas/opportunity_condition.schema.json",
+      "before_sha256": "2daf6e423ad9394e246f5b393141da95d4502c489f485b514d3cd58f2fed3604",
+      "after_sha256": "b978354f895665cae0a5c6de739c80c1df6b0c2f489fbba76fc36062aaf73dfe"
+    },
+    {
+      "path": "schemas/opportunity_hypothesis.schema.json",
+      "before_sha256": "5c7308ac8356e7d12acc887b7e8cb52da12d5c30a1d35d23d6fb5d802e6a2160",
+      "after_sha256": "601f968ff3c35ae3fd9f2ebd989c01af05e6ff0114a697cea0e24ca880fffe9c"
+    },
+    {
+      "path": "schemas/opportunity_input.schema.json",
+      "before_sha256": "455bc09c000b2ba94fde4d3c0b98981b8e220afcb9a8c506447df92d9b563c21",
+      "after_sha256": "703a3aed0ecf9ab6031e19073b63643d62cbc809d3e7571db990d0e3d7eacac6"
+    },
+    {
+      "path": "src/global_market_intelligence/opportunities/contracts.py",
+      "before_sha256": "5462dcad6c8e8cc7780ce60ae5926775c2161a097ae3146eb4717e71b8e0be58",
+      "after_sha256": "fef48fd63d6e9bd98df2e45d5be32fcd5bd3f4848422076a04dec95a696e0255"
+    },
+    {
+      "path": "src/global_market_intelligence/opportunities/monitor.py",
+      "before_sha256": "c30b5a7aef4d1248aa5a424f61ca928878ca25f4b5d8504d786f90527db3f25f",
+      "after_sha256": "b1b10eb6cf536360a24891427b1a25c2510c258f1bbe2a9dad407130705c1d79"
+    },
+    {
+      "path": "src/global_market_intelligence/opportunities/native/cache.py",
+      "before_sha256": "14e0efb9fc9d1fcb8a0be6663a4ecdd20b1b72e0ab02d98ecd8b13f4578fba86",
+      "after_sha256": "09cfe6d9bcb7e7fcba9356714c49aed89728bc591ff6fe83f521a915c68dd335"
+    },
+    {
+      "path": "src/global_market_intelligence/opportunities/native/cli.py",
+      "before_sha256": "ab8ca1fc9968909b1b5408be74981f71974916dc03127387083a73235a4e5304",
+      "after_sha256": "c385c2cedad64124503db42bfd604d1f4193c26b3a082de046075adbe334c3e6"
+    },
+    {
+      "path": "src/global_market_intelligence/opportunities/native/compute_bridge.py",
+      "before_sha256": "00dd161a02fa4e737ea24a01d7e1382798b33e9df16d8575727493732b8531c5",
+      "after_sha256": "02e963fb50575f871d47d6ac6cfab19c70a5d7a9e0160d1024d5a1803e610dd7"
+    },
+    {
+      "path": "src/global_market_intelligence/opportunities/native/data.py",
+      "before_sha256": "8851a27418cfd27cf042b1f2db62b9b92be7eb83f4bd5fdfcfd002355c30178c",
+      "after_sha256": "39c421ef978f36eb6aa93d4305f84a1f835ff8ff330dd2137ca0ce2f05a39f5f"
+    },
+    {
+      "path": "src/global_market_intelligence/opportunities/native/drawing.py",
+      "before_sha256": "f89cd6387a21ad785304890d05fc03e32d5f41125f82dd225dd03d0640fbd16c",
+      "after_sha256": "b0e6de7591fed55b7fd756b4076107f4e9c333bd5301e7e70a0f45371ecb9f14"
+    },
+    {
+      "path": "src/global_market_intelligence/opportunities/native/engine.py",
+      "before_sha256": "130c78131bfdeb0f6c538622e084119f81c08ddd36f75ad5437382d8adffed03",
+      "after_sha256": "b12e5488feb0326994d879e8cc6806ae00254a3df18dbb651f66f212549a13ba"
+    },
+    {
+      "path": "src/global_market_intelligence/opportunities/native/evidence_v11.py",
+      "before_sha256": "4cb71b31f933a6740d1fd98596de79661c2d4c9dfcc8a841b7670e7942ed249c",
+      "after_sha256": "5611a248533acf8336fda2b615f74a6c9f05d0fd65c840c40431a9e4de664361"
+    },
+    {
+      "path": "src/global_market_intelligence/opportunities/native/journal_v11.py",
+      "before_sha256": null,
+      "after_sha256": "2a5e8c55e5a132f89338203a5157458df075762f878229fda89bc055724064d8"
+    },
+    {
+      "path": "src/global_market_intelligence/opportunities/native/layout_v11.py",
+      "before_sha256": "916561ef96a00e3f85a279016e7516cabc5ba218d2713cece9d2009fd70a99b1",
+      "after_sha256": "0e7696f98592ed811a5aeab82575c046061d8535078fc97484d28a0a8b432571"
+    },
+    {
+      "path": "src/global_market_intelligence/opportunities/native/observations.py",
+      "before_sha256": "87dcc20f3a6dfa67cc376ab333267ddaa7b5276e67bc8c9fa92e6adbd93879b3",
+      "after_sha256": "0cd866acccf071c5e3a91c2dd98ce2a038ab76779d64a08282297227e731c82f"
+    },
+    {
+      "path": "src/global_market_intelligence/opportunities/native/pipeline.py",
+      "before_sha256": "a2a6b561ff1705431594c05b9c231c6070a2711663e24694271242f1cf64393e",
+      "after_sha256": "265390523df8ef74db3420366c8e2b2993e5bae3a0b3fb48f5e19de9d93c3824"
+    },
+    {
+      "path": "src/global_market_intelligence/opportunities/native/reviewer.py",
+      "before_sha256": "7b835d40e3d8db5c38e79c501ff74960f34893b4e8b362405ba57f0d6ebc5c55",
+      "after_sha256": "4126b6cd5fbabb02f56c91d1d63d6c5444976cd4107431f1b61fbf5b29f2f21b"
+    },
+    {
+      "path": "src/global_market_intelligence/opportunities/native/scanning.py",
+      "before_sha256": "334a02941a649c5e5778b9f1eeecee3422511d66955ab63514e7a517a9bb7bba",
+      "after_sha256": "619c03489d822d247b1041b184b6eaeb64fd3e4f92aff5e291a68de759db55ab"
+    },
+    {
+      "path": "src/global_market_intelligence/opportunities/native/scheduling.py",
+      "before_sha256": "a21ca88d3eee7a70b50189bb792c3fcb515b2028632e77263b09b9da10df5fe5",
+      "after_sha256": "c86def9b3de43a0efcfa2da2693e3ef40e5c34e8f8365fda8505546e3678c875"
+    },
+    {
+      "path": "src/global_market_intelligence/opportunities/native/scope_v11.py",
+      "before_sha256": null,
+      "after_sha256": "f350d0636455ab79083993a3a969b9faea8f8db53a78bc431dc654ff747f50e4"
+    },
+    {
+      "path": "src/global_market_intelligence/opportunities/native/tradingview.py",
+      "before_sha256": "856d9cc52cb13b4b15fb2196dd56923a5c0a8655471e0c79d1fbadef5217f0c0",
+      "after_sha256": "ba4a8a03c4351e5630d7e15b25ed9bc9537ef5fc6e4a3dc066e0b1679d537610"
+    },
+    {
+      "path": "src/global_market_intelligence/opportunities/native/tv_native.js",
+      "before_sha256": "a00efe6cbcea1e450ff179a5befdd7b7bc9b8910e36edd724ed139e3c4f07756",
+      "after_sha256": "2c62e4a8b18de7ec65a19f1c0c874927bd29be45e1a621f7296da818ca448dbc"
+    },
+    {
+      "path": "src/global_market_intelligence/opportunities/native/viewport_v11.js",
+      "before_sha256": null,
+      "after_sha256": "5bf3d3bb9cd89b2e4d18e9e4d917d67f3e86c8957f7f83ab4a7f39d229e86bf5"
+    },
+    {
+      "path": "src/global_market_intelligence/opportunities/operations.py",
+      "before_sha256": "f0183b5558f58dd00bc19a8e42510af988e08a468c0a213df5629df32867434b",
+      "after_sha256": "df6ba577f9dc25719e982f98725c106a51f960b7e73d617eb6fa7fd2abe3063f"
+    },
+    {
+      "path": "src/global_market_intelligence/opportunities/periods_v11.py",
+      "before_sha256": null,
+      "after_sha256": "4a56c653cf107a60d8af69d501bed66f75355fe9364262df0568fe86d92aa571"
+    },
+    {
+      "path": "src/global_market_intelligence/opportunities/presentation.py",
+      "before_sha256": "97d98d419e1822e8a9c5cf15155baf01276749513698bb3b0da7b570f24e7833",
+      "after_sha256": "e68586db073b44f9ddb880ca5a3cab26f1e0f8a1ec793b8fff29078ce534eab3"
+    },
+    {
+      "path": "src/global_market_intelligence/opportunities/sessions.py",
+      "before_sha256": "360598fc1bb557e1fe60af87fdbf35ec57feb1e69ffbd5affbf5387560eac237",
+      "after_sha256": "7d9472f5b0cace3b875e16314fa4f3bdf5bffff63d2aa623bba7551737fdbc1a"
+    },
+    {
+      "path": "src/global_market_intelligence/opportunities/timeframes.py",
+      "before_sha256": "087778e73124d8c64bb254ab335579eab87add41524b0faabc5779b886407892",
+      "after_sha256": "00df1b4b076a888031de743c7844400c0279fd2922c5523ac8d84532f52c336b"
+    },
+    {
+      "path": "src/global_market_intelligence/opportunities/workflow.py",
+      "before_sha256": "4b4e6e4feca5a0a26176e3529e4983f0c814c4a4e7debb506181088f0ad41429",
+      "after_sha256": "d68e9e49a01e9b97e2c82b19314655818fd0c9fffaf9a065b079bb3fed3d089a"
+    },
+    {
+      "path": "tests/native_viewport_guard_v11.cjs",
+      "before_sha256": null,
+      "after_sha256": "84eadf9010139cd245220237ccd1a1cc1eba9bf719951e298648cf3f38971fdf"
+    },
+    {
+      "path": "tests/test_native_delivery.py",
+      "before_sha256": "97425e36d3f3172ac6a736f61c4fbdfcfdcfdcec28efc62b83315de393c89849",
+      "after_sha256": "5cd5407f444a1291d909de23a979d0856cb4fc6081f73d66f45fb8cc55947623"
+    },
+    {
+      "path": "tests/test_tv11_evidence_delivery.py",
+      "before_sha256": "95caa48b4a30efb33512de715bfbb3da5e672be0864408167ac59b1e53d8fa4f",
+      "after_sha256": "a5abf69281c7d53bd6435f1c790297b75e97132137815acffe52ebd507e030d9"
+    },
+    {
+      "path": "tests/test_tv11_journal_viewport.py",
+      "before_sha256": null,
+      "after_sha256": "9c71ed0b37cba4ea7b259ee4693ac8316fc42100e80c59039436d312779406c1"
+    },
+    {
+      "path": "tests/test_tv11_r3_identity_time.py",
+      "before_sha256": null,
+      "after_sha256": "d21fc283e89236e531852af4543d91f30d343f7d52fde5065975b117374fbdcf"
+    },
+    {
+      "path": "tests/test_tv11_r3_periods.py",
+      "before_sha256": null,
+      "after_sha256": "d1b7ecac5a5b14b95486f87bda104e1e50bb2b836d2b6e05e71bca0e03295e74"
+    }
+  ],
+  "source_files": 713,
+  "production_installable": false
+}

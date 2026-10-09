@@ -1,0 +1,57 @@
+{
+  "scope": "R3_EXTENSION_METADATA_AND_BUILDERS_ONLY; patch parts are separately covered by SOURCE_DELTA.json",
+  "inherited_source_commit": "49734456a8529ce3a931915be7db0e91d5079ccb",
+  "patch_parts_manifest": "delivery/wyckoff-tv-v1.1/r3/SOURCE_DELTA.json",
+  "files": {
+    "DEPLOYMENT_NOTICE.md": {
+      "bytes": 843,
+      "sha256": "e19aac456fdf55aee6aa2c5100c89418cca9a5e0c57b2738d2b4ed9e9027fdda",
+      "git_blob": "ac8c1be060fa0062a4de03173c468ec6c3f0ca12"
+    },
+    "delivery/wyckoff-tv-v1.1/README.md": {
+      "bytes": 1373,
+      "sha256": "ad14cd6b1be8e11e77ee303bca08de5808101d8f3a75df4a1a40417e8eb6aacd",
+      "git_blob": "e3f755caf86f87c4fc6ddc2d069fdb211d8559b5"
+    },
+    "delivery/wyckoff-tv-v1.1/STATUS.json": {
+      "bytes": 1160,
+      "sha256": "478d7f51895a1118d1fb27a6bf65bcabe55ea54328812c088b00e97f54368109",
+      "git_blob": "b0240d4c37d9180e2c6773f2e830a1c9e4706385"
+    },
+    "delivery/wyckoff-tv-v1.1/r3/README.md": {
+      "bytes": 5798,
+      "sha256": "5757fb700ddbbf5278726b9a39bf39bfe57195d563963e5abcca39e9c0cd6b7e",
+      "git_blob": "6882e03ed03c2b23a92c451e970d6019744d26d9"
+    },
+    "delivery/wyckoff-tv-v1.1/r3/REBUILD_RESULT.json": {
+      "bytes": 401,
+      "sha256": "c3df40b0e6e305490f3c1cbd2eb57c0d68b0177cb6f160311f314795ee21f25f",
+      "git_blob": "0bcccea30486b78e0e511d4cafffec3495887692"
+    },
+    "delivery/wyckoff-tv-v1.1/r3/SOURCE_DELTA.json": {
+      "bytes": 14494,
+      "sha256": "9b050f4d9a6fe52f31b20db95fc45256f2c21680559dd57eb8da8bb58e73a23d",
+      "git_blob": "6599d54287ae03a1873c43e513744d48024dcf3b"
+    },
+    "delivery/wyckoff-tv-v1.1/r3/STATUS.json": {
+      "bytes": 1160,
+      "sha256": "478d7f51895a1118d1fb27a6bf65bcabe55ea54328812c088b00e97f54368109",
+      "git_blob": "b0240d4c37d9180e2c6773f2e830a1c9e4706385"
+    },
+    "delivery/wyckoff-tv-v1.1/r3/TEST_RESULTS.json": {
+      "bytes": 1258,
+      "sha256": "104dd773e2301df06bc1fed137f8e6c101ba8957a9e9cc701425b59a00ad4e75",
+      "git_blob": "49803ef431725b6e7004076fa742d09aa3496f70"
+    },
+    "delivery/wyckoff-tv-v1.1/r3/build_r3.py": {
+      "bytes": 8415,
+      "sha256": "9d5a2b2c540dfbffea38ea53f6acbc952836d7df4565eb56b68f8727e1fdb511",
+      "git_blob": "67056b56a90012ab420681c34a1ae8373c9e11d7"
+    },
+    "delivery/wyckoff-tv-v1.1/r3/test_build_r3.py": {
+      "bytes": 4794,
+      "sha256": "be199d0c85d9170b443c00d290969cba1999043d856964a267bcfb81fb9f7ee2",
+      "git_blob": "ad698c5fdf772960936ed98ee0be4e14da71af7e"
+    }
+  }
+}

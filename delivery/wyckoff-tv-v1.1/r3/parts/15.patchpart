@@ -1,0 +1,184 @@
++        self.assertIn(self.review['summary'],text);self.assertIn('尚未交付',text)
++    def test_repeat_sync_does_not_duplicate_markdown(self):
++        self.freeze();sync_vault(self.store,self.config,as_of=NOW)
++        files={str(p):p.read_bytes() for p in self.vault.rglob('*') if p.is_file()}
++        sync_vault(self.store,self.config,as_of='2026-09-08T12:00:00Z')
++        self.assertEqual(files,{str(p):p.read_bytes() for p in self.vault.rglob('*') if p.is_file()})
++    def test_human_edit_preserved_and_reported(self):
++        self.freeze();sync_vault(self.store,self.config,as_of=NOW)
++        note=next((self.vault/'Wyckoff/daily').rglob('*.md'));note.write_text('human edit')
++        result=sync_vault(self.store,self.config,as_of=NOW)
++        self.assertEqual(result['status'],'PARTIAL');self.assertEqual(note.read_text(),'human edit');self.assertIsNone(result['index'])
++    def test_nonempty_unowned_folder_refused(self):
++        (self.vault/'Wyckoff').mkdir();(self.vault/'Wyckoff/private.md').write_text('x')
++        with self.assertRaisesRegex(NativeError,'UNOWNED'):sync_vault(self.store,self.config,as_of=NOW)
++    def test_symlink_cannot_escape_vault(self):
++        outside=self.root/'outside';outside.mkdir();(self.vault/'Wyckoff').symlink_to(outside,target_is_directory=True)
++        with self.assertRaises(NativeError):sync_vault(self.store,self.config,as_of=NOW)
++        self.assertFalse(any(outside.iterdir()))
++    def test_content_addressed_note_no_clobber(self):
++        p=self.root/'note.md';_new_file(p,b'original')
++        with self.assertRaises(NativeError):_new_file(p,b'changed')
++        self.assertEqual(p.read_bytes(),b'original')
++    def test_intermediate_link_after_path_check_cannot_write_outside(self):
++        owned=self.root/'owned';owned.mkdir();outside=self.root/'outside';outside.mkdir()
++        target=_safe_path(owned,'inner/note.md')
++        (owned/'inner').symlink_to(outside,target_is_directory=True)
++        with self.assertRaises(OSError):_new_file(target,b'must not escape')
++        self.assertFalse(any(outside.iterdir()))
++    def test_destination_link_cannot_replace_or_read_human_file(self):
++        human=self.root/'human.md';human.write_text('preserve')
++        alias=self.root/'alias.md';alias.symlink_to(human)
++        with self.assertRaises(OSError):_new_file(alias,b'other')
++        self.assertEqual(human.read_text(),'preserve')
++    def test_relative_vault_or_parent_traversal_refused(self):
++        for cfg in ({'enabled':True,'vault_path':'relative'}, {'enabled':True,'folder':'../outside'}):
++            with self.assertRaises(ValueError):validate_journal_config(cfg)
++    def test_sunday_draft_and_monday_final_preserve_both(self):
++        self.freeze();first=create_calendar_reviews(self.store,as_of='2026-09-13T10:00:00Z',zone='UTC')
++        self.assertEqual(len(first),1);self.assertFalse(self.store.read_snapshot(first[0])['period']['period_closed'])
++        self.assertEqual(create_calendar_reviews(self.store,as_of='2026-09-13T11:00:00Z',zone='UTC'),[])
++        final=create_calendar_reviews(self.store,as_of='2026-09-14T00:00:00Z',zone='UTC')
++        self.assertEqual(len(final),1);self.assertTrue(self.store.read_snapshot(final[0])['period']['period_closed'])
++        self.assertFalse(self.store.read_snapshot(first[0])['period']['period_closed'])
++    def test_month_review_no_win_rate_claim(self):
++        self.freeze();keys=create_calendar_reviews(self.store,as_of='2026-10-01T00:00:00Z',zone='UTC')
++        month=[self.store.read_snapshot(k) for k in keys if self.store.read_snapshot(k)['period']['kind']=='MONTH'][0]
++        self.assertIsNone(month['trading_win_rate']);self.assertIsNone(month['probability']);self.assertFalse(month['automatic_rule_changes'])
++    def test_disabled_journal_makes_no_vault_writes(self):
++        self.freeze();r=journal_checkpoint(self.store,{'journal':{**self.config,'enabled':False}},as_of=NOW)
++        self.assertEqual(r['status'],'DISABLED');self.assertFalse(any(self.vault.iterdir()))
++
++    def assessment(self,at,*,subject='case',outcome='PENDING',deadline='2026-10-20T00:00:00Z',tf='1D'):
++        row={'product_id':self.ds['instrument']['product_id'],'analysis_timeframe':tf,
++             'episode_id':subject,'hypothesis_id':'PRIMARY','is_primary':True,
++             'as_of':at,'deadline':deadline,'expected_event_outcome':outcome}
++        return self.store.append('ASSESSMENT',subject,row,at=at,idempotency_key=subject+at,
++                                 snapshot_sha256=self.store.snapshot(row))
++    def test_october_update_keeps_september_cohort_and_original_edition(self):
++        self.freeze();self.assessment(NOW)
++        refs=create_calendar_reviews(self.store,as_of='2026-10-01T01:00:00Z',zone='UTC')
++        original=next(self.store.read_snapshot(k) for k in refs if self.store.read_snapshot(k)['period']['kind']=='MONTH')
++        self.assessment('2026-10-02T00:00:00Z',outcome='REALIZED')
++        refs=create_calendar_reviews(self.store,as_of='2026-10-03T00:00:00Z',zone='UTC')
++        new=next(self.store.read_snapshot(k) for k in refs if self.store.read_snapshot(k)['period']['kind']=='MONTH')
++        self.assertEqual(original['outcomes'][0]['outcome'],'PENDING')
++        self.assertEqual(new['outcomes'][0]['outcome'],'REALIZED')
++        self.assertEqual(new['outcomes'][0]['outcome_recorded_at'],'2026-10-02T00:00:00Z')
++        self.assertTrue(any(self.store.read_snapshot(e['snapshot_sha256'])==original for e in self.store.events() if e['kind']=='TV11_CALENDAR_REVIEW'))
++    def test_preperiod_settled_case_not_counted_again(self):
++        self.assessment('2026-08-10T00:00:00Z',outcome='REALIZED')
++        self.freeze();refs=create_calendar_reviews(self.store,as_of='2026-10-01T00:00:00Z',zone='UTC')
++        month=next(self.store.read_snapshot(k) for k in refs if self.store.read_snapshot(k)['period']['kind']=='MONTH')
++        self.assertEqual(month['outcomes'],[])
++    def test_overdue_pending_not_relabelled_failure(self):
++        self.freeze();self.assessment(NOW,deadline='2026-09-10T00:00:00Z')
++        refs=create_calendar_reviews(self.store,as_of='2026-09-14T00:00:00Z',zone='UTC')
++        self.assertEqual(self.store.read_snapshot(refs[0])['outcomes'][0]['outcome'],'OVERDUE_UNEVALUATED')
++    def test_four_hour_case_not_mixed_with_only_daily_record(self):
++        self.freeze();self.assessment(NOW,tf='4H')
++        refs=create_calendar_reviews(self.store,as_of='2026-09-14T00:00:00Z',zone='UTC')
++        self.assertEqual(self.store.read_snapshot(refs[0])['outcomes'],[])
++    def test_index_links_resolve_from_index_directory(self):
++        self.freeze();result=sync_vault(self.store,self.config,as_of=NOW)
++        index=self.vault/'Wyckoff'/result['index']
++        import re
++        targets=re.findall(r'\[当时判断\]\(([^)]+)\)',index.read_text())
++        self.assertTrue(targets)
++        self.assertTrue(all((index.parent/p).is_file() for p in targets))
++        self.assertEqual(result['verified_notes'],1)
++    def test_bad_timezone_or_folder_is_config_error(self):
++        for cfg in ({'enabled':True,'timezone':'NOT/REAL'}, {'enabled':True,'folder':12}):
++            with self.assertRaises(ValueError):validate_journal_config(cfg)
++    def test_daily_idle_record_is_deduplicated_within_day_not_across_days(self):
++        self.freeze();r={'state':'IDLE','products':[]}
++        first=record_daily_check(self.store,r,as_of=NOW,zone='UTC')
++        repeat=record_daily_check(self.store,r,as_of='2026-09-07T13:00:00Z',zone='UTC')
++        nextday=record_daily_check(self.store,r,as_of='2026-09-08T12:00:00Z',zone='UTC')
++        self.assertEqual(first,repeat);self.assertNotEqual(first,nextday)
++        self.assertEqual(len([e for e in self.store.events() if e['kind']=='TV11_MAIN_RECORD']),1)
++        self.assertEqual(len([e for e in self.store.events() if e['kind']=='TV11_DAILY_CHECK']),2)
++        sync_vault(self.store,self.config,as_of='2026-09-09T00:00:00Z')
++        self.assertEqual(len(list((self.vault/'Wyckoff/checks').glob('*.md'))),2)
++    def test_daily_technical_failure_preserved_not_new_market_judgment(self):
++        self.freeze();record_daily_check(self.store,{'state':'IDLE'},as_of=NOW,zone='UTC')
++        r=record_daily_check(self.store,{'state':'PARTIAL','products':[{'status':'FAILED','error':'TV timeout'}]},as_of='2026-09-07T13:00:00Z',zone='UTC')
++        self.assertEqual(r['products'][0]['error'],'TV timeout')
++        self.assertEqual(len(main_context(self.store,track_id='SYNTH@1D',as_of='2026-09-08T00:00:00Z')),1)
++
++
++class CalendarBoundaryTests(unittest.TestCase):
++    def test_saturday_not_weekly_due(self):
++        self.assertEqual(periods('2026-09-07T00:00:00Z','2026-09-12T23:59:59Z','UTC'),[])
++    def test_leap_month_is_calendar_month(self):
++        p=periods('2024-02-01T00:00:00Z','2024-03-01T00:00:00Z','UTC')
++        month=next(v for v in p if v['kind']=='MONTH')
++        self.assertEqual(month['end'],'2024-03-01T00:00:00+00:00')
++    def test_december_rollover(self):
++        p=periods('2025-12-25T00:00:00Z','2026-01-01T00:00:00Z','UTC')
++        self.assertTrue(any(v['id']=='month-2025-12' for v in p))
++    def test_dst_week_not_hardcoded_168_hours(self):
++        p=periods('2026-03-02T00:00:00-05:00','2026-03-09T00:00:00-04:00','America/New_York')
++        week=next(v for v in p if v['kind']=='WEEK')
++        a=datetime.fromisoformat(week['start']);b=datetime.fromisoformat(week['end'])
++        self.assertEqual((b-a).total_seconds(),167*3600)
++    def test_timezone_changes_actual_sunday_boundary(self):
++        self.assertEqual(periods('2026-09-07T00:00:00Z','2026-09-12T16:00:00Z','UTC'),[])
++        self.assertTrue(periods('2026-09-07T00:00:00Z','2026-09-12T16:00:00Z','Asia/Shanghai'))
++
++
++class IntegrationTests(unittest.TestCase):
++    def config(self):
++        cfg=template();cfg.update(enabled=True,write_tv=True,products=[product()],min_daily_bars=10,min_weekly_bars=3)
++        return cfg
++    def test_shared_layout_requires_explicit_same_product_mode(self):
++        cfg=self.config();p=cfg['products'][0];p['analysis_timeframes']=['1D','4H'];p['delivery_layouts']={'1D':'SYNTH_LAYOUT','4H':'SYNTH_LAYOUT'}
++        with self.assertRaises(ValueError):validate_config(cfg)
++        p['layout_mode']='SEQUENTIAL_SAME_PRODUCT';validate_config(cfg)
++        self.assertEqual([u['layout_id'] for u in tracks(p)],['SYNTH_LAYOUT','SYNTH_LAYOUT'])
++    def test_journal_hook_runs_on_no_new_candles(self):
++        with tempfile.TemporaryDirectory() as tmp:
++            cfg=self.config();cfg['write_tv']=False;clock=Clock()
++            run_once(Path(tmp),cfg,engine=FakeEngine(),reviewer=FakeReviewer(),tv_factory=lambda p:FakeTV(),clock=clock)
++            with patch('global_market_intelligence.opportunities.native.pipeline.journal_checkpoint',return_value={'status':'SYNCED','reviews_created':0}) as hook:
++                result=run_once(Path(tmp),cfg,engine=FakeEngine(),reviewer=FakeReviewer(),tv_factory=lambda p:FakeTV(),clock=clock)
++                self.assertTrue(hook.called);self.assertEqual(result['journal']['status'],'SYNCED')
++    def test_journal_failure_does_not_repeat_market_analysis(self):
++        with tempfile.TemporaryDirectory() as tmp:
++            cfg=self.config();cfg['write_tv']=False;clock=Clock()
++            with patch('global_market_intelligence.opportunities.native.pipeline.journal_checkpoint',return_value={'status':'FAILED','error':'disk'}):
++                r=run_once(Path(tmp),cfg,engine=FakeEngine(),reviewer=FakeReviewer(),tv_factory=lambda p:FakeTV(),clock=clock)
++            self.assertEqual(r['state'],'PARTIAL')
++            store=EventStore(Path(tmp)/'archive');n=len([e for e in store.events() if e['kind']=='NATIVE_RESEARCH'])
++            run_once(Path(tmp),cfg,engine=FakeEngine(),reviewer=FakeReviewer(),tv_factory=lambda p:FakeTV(),clock=clock)
++            self.assertEqual(n,len([e for e in store.events() if e['kind']=='NATIVE_RESEARCH']))
++
++
++class NativeVMTests(unittest.TestCase):
++    def test_actual_native_js_in_node_fixture(self):
++        p=subprocess.run(['node',str(Path(__file__).with_name('native_viewport_guard_v11.cjs'))],capture_output=True,text=True,timeout=15)
++        self.assertEqual(p.returncode,0,p.stdout+p.stderr)
++        result=json.loads(p.stdout.strip().splitlines()[-1]);self.assertEqual(result['passed'],15)
++
++if __name__=='__main__':unittest.main()
+--- /dev/null
++++ b/tests/test_tv11_r3_identity_time.py
+@@ -0,0 +1,163 @@
++"""Identity/time tests. Fixtures do not certify any real exchange or TV screen."""
++from __future__ import annotations
++from copy import deepcopy
++from dataclasses import asdict, replace
++from datetime import date, datetime, timedelta, timezone
++import json
++from pathlib import Path
++import tempfile
++import unittest
++from unittest.mock import patch
++import exchange_calendars
++from test_native_monitor import instrument,product
++from test_tv11_r3_periods import capture_frame,qualified,computed,answer,AT
++from global_market_intelligence.opportunities.contracts import Instrument
++from global_market_intelligence.opportunities.periods_v11 import period_bounds
++from global_market_intelligence.opportunities.native.evidence_v11 import measure_span,compare_spans,bar_trading_seconds
++from global_market_intelligence.opportunities.native.cache import capture_signature
++from global_market_intelligence.opportunities.native.cli import template,add_current

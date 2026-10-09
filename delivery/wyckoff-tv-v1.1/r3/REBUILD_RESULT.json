@@ -1,0 +1,11 @@
+{
+  "status": "SOURCE_CANDIDATE_NOT_DEPLOYABLE",
+  "revision": "r3",
+  "source_files": 713,
+  "source_fingerprint": "96acd05fdfb55d6a981361ab645cf9e07535f5329330ee1e9531a37a7945af2e",
+  "sha256": "e155b18c4122bd8988e3ad3731aeb6f4ef32a967b4181963697857062bccc0b3",
+  "production_modified": false,
+  "network_used": false,
+  "project_code_executed": false,
+  "all_files_match_current_candidate": true
+}
